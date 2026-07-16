@@ -1,0 +1,19 @@
+{
+  "name": "pes-arena-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend en tiempo real de PES ARENA: matchmaking y salas de conexión.",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
