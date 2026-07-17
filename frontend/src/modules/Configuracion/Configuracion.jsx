@@ -6,11 +6,11 @@ import InfoRow from "../../components/InfoRow";
 import { APP_CONFIG } from "../../config/appConfig";
 import Tutorial from "./Tutorial";
 
-export default function Configuracion() {
+export default function Configuracion({ onNavigate }) {
   const [view, setView] = useState("main");
 
   if (view === "tutorial") {
-    return <Tutorial onBack={() => setView("main")} />;
+    return <Tutorial onBack={() => setView("main")} onNavigate={onNavigate} />;
   }
 
   return (

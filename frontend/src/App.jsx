@@ -10,7 +10,7 @@ export default function App() {
   return (
     <>
       <div className="pb-16">
-        <ActiveModule />
+        <ActiveModule onNavigate={setActiveId} />
       </div>
       <NavBar modules={MODULES} active={activeId} onChange={setActiveId} />
     </>
