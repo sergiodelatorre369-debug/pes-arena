@@ -5,7 +5,21 @@
 // con el nombre indicado en "image" (ej. paso-1.jpg) — no hay que tocar
 // ningún componente, la imagen aparece sola en cuanto existe el archivo.
 // ---------------------------------------------------------------------------
-export const TUTORIAL_STEPS = [
+// ---------------------------------------------------------------------------
+// Contenido del tutorial "Aprende a jugar Online".
+// Para actualizar texto: edita los arrays de abajo, nada más.
+// Para agregar una imagen: guarda el archivo en frontend/public/tutorial/
+// con el nombre indicado en "image" (ej. paso-1.jpg) — no hay que tocar
+// ningún componente, la imagen aparece sola en cuanto existe el archivo.
+//
+// El paso 4 recibe el "config" real (el mismo de public/config.json) para
+// que el ID de red de ZeroTier siempre sea el mismo que se ve en la tarjeta
+// de Configuración Online — un solo lugar de verdad, no dos copias sueltas.
+// ---------------------------------------------------------------------------
+export function getTutorialSteps(config) {
+  const zeroTierId = config?.online?.zeroTierNetworkId || "tu-id-de-red";
+
+  return [
   {
     title: "Instalar la ISO",
     image: "/tutorial/paso-1.jpg",
@@ -43,7 +57,7 @@ export const TUTORIAL_STEPS = [
     items: [
       "Abre ZeroTier One.",
       "Presiona ADD NETWORK.",
-      "Pega la red: 56374ac9a4e0f579",
+      `Pega la red: ${zeroTierId}`,
       "Activa: ✔ Router all traffic through ZeroTier",
       "Presiona Add.",
       "Ve a Settings y activa: ✔ Allow Mobile Data, ✔ Disable IPv6, ✔ Disable Connectivity Check",
@@ -90,4 +104,5 @@ export const TUTORIAL_STEPS = [
       "Jugador Visitante: Amistoso → Adhoc → Buscar Sala",
     ],
   },
-];
+  ];
+}

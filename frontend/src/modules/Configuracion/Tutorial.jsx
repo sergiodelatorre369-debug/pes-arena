@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, PartyPopper, Swords } from "lucide-react";
 import StepImage from "../../components/StepImage";
-import { TUTORIAL_STEPS } from "./tutorialContent";
+import { getTutorialSteps } from "./tutorialContent";
 
-export default function Tutorial({ onBack, onNavigate }) {
+export default function Tutorial({ onBack, onNavigate, config }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [completed, setCompleted] = useState(false);
 
+  const TUTORIAL_STEPS = getTutorialSteps(config);
   const total = TUTORIAL_STEPS.length;
   const step = TUTORIAL_STEPS[stepIndex];
   const isFirst = stepIndex === 0;
