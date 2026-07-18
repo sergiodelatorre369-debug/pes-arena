@@ -68,7 +68,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Configurar PPSSPP",
-    image: "/tutorial/Paso-5.PNG",
+    image: "/tutorial/Paso-5.png",
     items: [
       "Mantén presionado el juego durante dos segundos.",
       "Entra a: Configuración del Juego → Juego en Red",
@@ -80,7 +80,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Buscar Rival",
-    image: "/tutorial/Paso-6.PNG",
+    image: "/tutorial/Paso-6.png",
     items: [
       "Abre PES ARENA.",
       "Presiona Buscar Rival.",
