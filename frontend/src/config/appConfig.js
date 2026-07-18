@@ -7,8 +7,8 @@
 // ---------------------------------------------------------------------------
 export const DEFAULT_CONFIG = {
   isoOficial: {
-    nombre: "PES PPSSPP Oficial",
-    version: "v1.0",
+    nombre: "PES PPSSPP Chelito 19 Oficial",
+    version: "2026",
     url: "https://www.mediafire.com/file/1driorxdmunof2o/eFootball+2026+PSP+C19+v2+-+Lite+%28+Camara+PS5+%29.iso/file",
   },
   texturas: {
