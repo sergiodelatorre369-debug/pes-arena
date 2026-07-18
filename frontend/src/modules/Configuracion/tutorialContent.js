@@ -22,7 +22,7 @@ export function getTutorialSteps(config) {
   return [
   {
     title: "Instalar la ISO",
-    image: "/tutorial/Paso-1.jpg",
+    image: "/tutorial/paso-1.jpg",
     items: [
       "Descarga la ISO Oficial desde Configuración.",
       "Abre ZArchiver.",
