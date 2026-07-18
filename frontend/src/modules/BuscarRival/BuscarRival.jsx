@@ -147,7 +147,7 @@ export default function BuscarRival() {
           <div className="mb-2 text-xs tracking-widest font-semibold text-floodlight">PPSSPP · ONLINE · 1V1</div>
           <h1 className="text-6xl mb-3 font-display tracking-wide">PES ARENA</h1>
           <p className="max-w-sm mb-10 text-chalkDim">
-            Encuentra rival, comparte tu IP y entra a la cancha. Sin grupos, sin esperar a nadie.
+            Encuentra rival. Entra a la ARENA. Entrena, Compite, diviertete.
           </p>
 
           <div className="w-full max-w-sm mb-6 text-left">
@@ -304,7 +304,7 @@ export default function BuscarRival() {
           </div>
 
           <div className="flex flex-wrap gap-2 px-5 py-3 border-b border-turf">
-            {["Ya creé sala", "No conecta", "Vuelve a crear", "Listo, a jugar"].map((txt) => (
+            {["Crea sala", "Busca la sala", "Me da error", "Vuelve a crear"].map((txt) => (
               <button
                 key={txt}
                 onClick={() => sendSystemMsg(txt)}
