@@ -22,7 +22,7 @@ export function getTutorialSteps(config) {
   return [
   {
     title: "Instalar la ISO",
-    image: "/tutorial/paso-1.jpg",
+    image: "/tutorial/Paso-1.jpg",
     items: [
       "Descarga la ISO Oficial desde Configuración.",
       "Abre ZArchiver.",
@@ -33,7 +33,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Instalar las Texturas",
-    image: "/tutorial/paso-2.jpg",
+    image: "/tutorial/Paso-2.jpg",
     items: [
       "Descarga las Texturas desde Configuración.",
       "Descomprime con ZArchiver.",
@@ -43,7 +43,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Instalar el Savedata",
-    image: "/tutorial/paso-3.jpg",
+    image: "/tutorial/Paso-3.jpg",
     items: [
       "Descarga el Savedata desde Configuración.",
       "Descomprime el archivo.",
@@ -53,7 +53,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Configurar ZeroTier",
-    image: "/tutorial/paso-4.jpg",
+    image: "/tutorial/Paso-4.jpg",
     items: [
       "Abre ZeroTier One.",
       "Presiona ADD NETWORK.",
@@ -68,7 +68,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Configurar PPSSPP",
-    image: "/tutorial/paso-5.jpg",
+    image: "/tutorial/Paso-5.PNG",
     items: [
       "Mantén presionado el juego durante dos segundos.",
       "Entra a: Configuración del Juego → Juego en Red",
@@ -80,7 +80,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Buscar Rival",
-    image: "/tutorial/paso-6.jpg",
+    image: "/tutorial/Paso-6.PNG",
     items: [
       "Abre PES ARENA.",
       "Presiona Buscar Rival.",
@@ -90,7 +90,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Colocar la IP",
-    image: "/tutorial/paso-7.jpg",
+    image: "/tutorial/Paso-7.jpg",
     items: [
       "Entra en PPSSPP: Juego en Red → Cambiar dirección IP del servidor PRO Adhoc",
       "Pega la IP que te mandó el jugador Local.",
@@ -98,7 +98,7 @@ export function getTutorialSteps(config) {
   },
   {
     title: "Crear o Entrar a la Sala",
-    image: "/tutorial/paso-8.jpg",
+    image: "/tutorial/Paso-8.jpg",
     items: [
       "Jugador Local: Amistoso → Adhoc → Crear Sala",
       "Jugador Visitante: Amistoso → Adhoc → Buscar Sala",
