@@ -21,6 +21,6 @@ export const DEFAULT_CONFIG = {
     zeroTierNetworkId: "56374ac9a4e0f579",
     puerto: "10000",
     modeloPSP: "2000 / 3000",
-    Amistoso / Adhoc
+  
   },
 };
