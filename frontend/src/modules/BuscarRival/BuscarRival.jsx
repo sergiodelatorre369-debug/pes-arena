@@ -156,7 +156,7 @@ export default function BuscarRival() {
               value={nickname}
               onChange={(e) => setNickname(e.target.value.slice(0, 18))}
               onKeyDown={(e) => e.key === "Enter" && startSearching()}
-              placeholder="Ej. Chicharito10"
+              placeholder="Ej. Rambo77"
               aria-label="Tu apodo"
               className="w-full rounded-xl px-4 py-3 outline-none border border-turf bg-pitchCard text-chalk focus:ring-2 focus:ring-floodlight"
             />
