@@ -147,7 +147,7 @@ export default function BuscarRival() {
           <div className="mb-2 text-xs tracking-widest font-semibold text-floodlight">PPSSPP · ONLINE · 1V1</div>
           <h1 className="text-6xl mb-3 font-display tracking-wide">PES ARENA</h1>
           <p className="max-w-sm mb-10 text-chalkDim">
-            Encuentra rival. Entra a la ARENA. Entrena, Compite, diviertete.
+            Encuentra rival. Entra al estadio ARENA. Entrena, Compite, diviertete.
           </p>
 
           <div className="w-full max-w-sm mb-6 text-left">
