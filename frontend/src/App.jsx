@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { MODULES } from "./modules/registry";
 import NavBar from "./components/NavBar";
+import { ProfileProvider } from "./context/ProfileContext";
+import { AuthProvider } from "./context/AuthContext";
 
 export default function App() {
   const [activeId, setActiveId] = useState(MODULES[0].id);
@@ -8,11 +10,13 @@ export default function App() {
   const ActiveModule = active.component;
 
   return (
-    <>
-      <div className="pb-16">
-        <ActiveModule onNavigate={setActiveId} />
-      </div>
-      <NavBar modules={MODULES} active={activeId} onChange={setActiveId} />
-    </>
+    <AuthProvider>
+      <ProfileProvider>
+        <div className="pb-16">
+          <ActiveModule onNavigate={setActiveId} />
+        </div>
+        <NavBar modules={MODULES} active={activeId} onChange={setActiveId} />
+      </ProfileProvider>
+    </AuthProvider>
   );
 }

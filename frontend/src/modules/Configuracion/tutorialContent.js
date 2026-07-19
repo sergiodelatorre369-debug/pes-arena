@@ -71,7 +71,7 @@ export function getTutorialSteps(config) {
     image: "/tutorial/Paso-5.png",
     items: [
       "Mantén presionado el juego durante dos segundos.",
-      "Entra a: Configuración del Juego → Juego en Red",
+      "Entra a: Ajustes del juego → Juego en Red",
       "Activa: ✔ Juego en Red / WLAN",
       "Puerto: 10000",
       "Después entra a: Sistema → Modelo PSP",
@@ -83,7 +83,7 @@ export function getTutorialSteps(config) {
     image: "/tutorial/Paso-6.png",
     items: [
       "Abre PES ARENA.",
-      "Presiona Buscar Rival.",
+      "Presiona Partida rapida.",
       "Espera el emparejamiento.",
       "El jugador Local va a compartir su IP mediante el chat.",
     ],

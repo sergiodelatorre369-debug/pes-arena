@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Zap, Users, ArrowLeft, Swords, LogOut, Copy, Check, Send } from "lucide-react";
+import { Zap, Users, ArrowLeft, Swords, LogOut, Copy, Check, Send, UserCircle } from "lucide-react";
 import { socket } from "../../socket";
+import { useProfile } from "../../context/ProfileContext";
 
 function jerseyNum(id) {
   let h = 0;
@@ -15,6 +16,7 @@ function timeAgo(ts) {
 }
 
 export default function BuscarRival() {
+  const { openProfile } = useProfile();
   const [screen, setScreen] = useState("home");
   const [nickname, setNickname] = useState("");
   const [error, setError] = useState("");
@@ -147,7 +149,7 @@ export default function BuscarRival() {
           <div className="mb-2 text-xs tracking-widest font-semibold text-floodlight">PPSSPP · ONLINE · 1V1</div>
           <h1 className="text-6xl mb-3 font-display tracking-wide">PES ARENA</h1>
           <p className="max-w-sm mb-10 text-chalkDim">
-            Encuentra rival. Entra al estadio ARENA. Entrena, Compite, diviertete.
+            Encuentra rival, comparte tu IP y entra a la cancha. Sin grupos, sin esperar a nadie.
           </p>
 
           <div className="w-full max-w-sm mb-6 text-left">
@@ -156,7 +158,7 @@ export default function BuscarRival() {
               value={nickname}
               onChange={(e) => setNickname(e.target.value.slice(0, 18))}
               onKeyDown={(e) => e.key === "Enter" && startSearching()}
-              placeholder="Ej. Rambo77"
+              placeholder="Ej. Chicharito10"
               aria-label="Tu apodo"
               className="w-full rounded-xl px-4 py-3 outline-none border border-turf bg-pitchCard text-chalk focus:ring-2 focus:ring-floodlight"
             />
@@ -228,20 +230,31 @@ export default function BuscarRival() {
           ) : (
             <div className="flex flex-col gap-3">
               {queueList.map((p) => (
-                <button
+                <div
                   key={p.socketId}
-                  onClick={() => challengeRival(p)}
-                  className="flex items-center gap-4 rounded-xl p-4 text-left border border-turf bg-pitchCard w-full hover:border-home"
+                  className="flex items-center gap-3 rounded-xl p-4 border border-turf bg-pitchCard w-full hover:border-home"
                 >
                   <div className="flex items-center justify-center rounded-lg text-lg font-bold w-11 h-11 bg-awayDim font-display">
                     {jerseyNum(p.socketId)}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 text-left">
                     <div className="font-semibold">{p.nickname}</div>
                     <div className="text-xs text-chalkDim">{timeAgo(p.joinedAt)}</div>
                   </div>
-                  <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-home text-white">Retar</span>
-                </button>
+                  <button
+                    onClick={() => openProfile(p)}
+                    aria-label={`Ver perfil de ${p.nickname}`}
+                    className="text-chalkDim hover:text-floodlight"
+                  >
+                    <UserCircle size={20} />
+                  </button>
+                  <button
+                    onClick={() => challengeRival(p)}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-home text-white"
+                  >
+                    Retar
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -304,7 +317,7 @@ export default function BuscarRival() {
           </div>
 
           <div className="flex flex-wrap gap-2 px-5 py-3 border-b border-turf">
-            {["Crea sala", "Busca la sala", "Me da error", "Vuelve a crear"].map((txt) => (
+            {["Ya creé sala", "No conecta", "Vuelve a crear", "Listo, a jugar"].map((txt) => (
               <button
                 key={txt}
                 onClick={() => sendSystemMsg(txt)}
