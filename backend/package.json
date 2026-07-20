@@ -3,15 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Backend en tiempo real de PES ARENA: matchmaking y salas de conexión.",
+  "description": "Backend en tiempo real de PES ARENA: matchmaking, salas de conexión y cuentas.",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push"
   },
   "dependencies": {
+    "@prisma/client": "^5.18.0",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
     "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "prisma": "^5.18.0"
   },
   "engines": {
     "node": ">=18"

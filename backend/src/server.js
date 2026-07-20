@@ -3,6 +3,8 @@ import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import crypto from "crypto";
+import { prisma } from "./db.js";
+import { hashPassword, comparePassword, signToken, authMiddleware, publicUser } from "./auth.js";
 
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
@@ -61,13 +63,63 @@ function createRoom(playerA, playerB) {
 }
 
 // ---------------------------------------------------------------------------
-// HTTP app (solo para health check / monitoreo, la app real habla por sockets)
+// HTTP app: health check + rutas de cuentas (Fase 2). El matchmaking en
+// tiempo real sigue siendo 100% por Socket.IO, sin tocarse.
 // ---------------------------------------------------------------------------
 const app = express();
 app.use(cors({ origin: CLIENT_URL }));
+app.use(express.json());
+
 app.get("/health", (req, res) => {
   cleanQueue();
   res.json({ ok: true, enCola: queue.length, salasActivas: rooms.size });
+});
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { username, password, countryCode, countryName, countryFlag } = req.body || {};
+    if (!username || !username.trim() || !password || password.length < 4) {
+      return res.status(400).json({ error: "Apodo y contraseña (mínimo 4 caracteres) son obligatorios." });
+    }
+    const clean = username.trim().slice(0, 20);
+    const existing = await prisma.user.findUnique({ where: { username: clean } });
+    if (existing) {
+      return res.status(409).json({ error: "Ese apodo ya está registrado." });
+    }
+    const passwordHash = await hashPassword(password);
+    const user = await prisma.user.create({
+      data: { username: clean, passwordHash, countryCode, countryName, countryFlag },
+    });
+    res.json({ token: signToken(user), user: publicUser(user) });
+  } catch (err) {
+    console.error("Error en /api/auth/register:", err);
+    res.status(500).json({ error: "No se pudo crear la cuenta." });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    const user = await prisma.user.findUnique({ where: { username: (username || "").trim() } });
+    if (!user || !(await comparePassword(password || "", user.passwordHash))) {
+      return res.status(401).json({ error: "Apodo o contraseña incorrectos." });
+    }
+    res.json({ token: signToken(user), user: publicUser(user) });
+  } catch (err) {
+    console.error("Error en /api/auth/login:", err);
+    res.status(500).json({ error: "No se pudo iniciar sesión." });
+  }
+});
+
+app.get("/api/auth/me", authMiddleware, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    console.error("Error en /api/auth/me:", err);
+    res.status(500).json({ error: "No se pudo cargar el perfil." });
+  }
 });
 
 const server = http.createServer(app);
