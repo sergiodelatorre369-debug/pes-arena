@@ -1,0 +1,18 @@
+{
+  "isoOficial": {
+    "nombre": "PES PPSSPP Oficial",
+    "version": "v1.0",
+    "url": "https://ejemplo.com/descargar-iso"
+  },
+  "texturas": {
+    "url": "https://ejemplo.com/descargar-texturas"
+  },
+  "savedata": {
+    "url": "https://ejemplo.com/descargar-savedata"
+  },
+  "online": {
+    "zeroTierNetworkId": "56374ac9a4e0f579",
+    "puerto": "10000",
+    "modeloPSP": "2000 / 3000"
+  }
+}
