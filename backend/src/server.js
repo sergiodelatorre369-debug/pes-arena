@@ -122,6 +122,33 @@ app.get("/api/auth/me", authMiddleware, async (req, res) => {
   }
 });
 
+// Actualiza foto de perfil y/o fondo de la tarjeta. Solo toca los campos
+// que vengan en el body, para poder usarse tanto desde "cambiar foto"
+// como desde "elegir fondo" sin duplicar rutas.
+app.patch("/api/profile", authMiddleware, async (req, res) => {
+  try {
+    const { photoUrl, background } = req.body || {};
+    const data = {};
+    if (typeof photoUrl === "string") {
+      if (photoUrl.length > 300000) {
+        return res.status(400).json({ error: "La foto es muy pesada. Intenta con una más chica." });
+      }
+      data.photoUrl = photoUrl;
+    }
+    if (typeof background === "string") {
+      data.background = background;
+    }
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: "No hay nada que actualizar." });
+    }
+    const user = await prisma.user.update({ where: { id: req.userId }, data });
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    console.error("Error en /api/profile:", err);
+    res.status(500).json({ error: "No se pudo actualizar el perfil." });
+  }
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: CLIENT_URL, methods: ["GET", "POST"] },

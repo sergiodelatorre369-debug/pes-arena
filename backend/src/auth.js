@@ -39,11 +39,15 @@ export function authMiddleware(req, res, next) {
 export function publicUser(user) {
   return {
     id: user.id,
+    playerId: `PES-${1000 + user.playerNumber}`,
     username: user.username,
     countryCode: user.countryCode,
     countryName: user.countryName,
     countryFlag: user.countryFlag,
+    photoUrl: user.photoUrl,
+    background: user.background,
     points: user.points,
+    confiabilidad: user.confiabilidad,
     createdAt: user.createdAt,
   };
 }
