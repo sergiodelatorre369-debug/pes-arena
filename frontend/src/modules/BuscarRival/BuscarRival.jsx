@@ -156,15 +156,15 @@ export default function BuscarRival() {
       {screen === "home" && (
         <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 text-center">
           <div className="mb-2 text-xs tracking-widest font-semibold text-floodlight">PPSSPP · ONLINE · 1V1</div>
-          <h1 className="text-6xl mb-3 font-display tracking-wide">PES ARENA</h1>
+          <h1 className="text-6xl mb-3 font-display tracking-wide">PES ARENA ONLINE</h1>
           <p className="max-w-sm mb-10 text-chalkDim">
-            Encuentra rival, comparte tu IP y entra a la cancha. Sin grupos, sin esperar a nadie.
+            Encuentra rival, Entra al Estadio Arena, Compite y Diviertete.
           </p>
 
           <div className="w-full max-w-sm mb-6 text-left">
             {user ? (
               <div className="rounded-xl px-4 py-3 border border-turf bg-pitchCard">
-                <p className="text-xs tracking-wide text-chalkDim mb-1">JUGANDO COMO</p>
+                <p className="text-xs tracking-wide text-chalkDim mb-1">Hey Crack!</p>
                 <p className="font-display text-lg text-floodlight">Bienvenido, {user.username}</p>
               </div>
             ) : (
