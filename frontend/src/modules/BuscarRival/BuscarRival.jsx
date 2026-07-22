@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Zap, Users, ArrowLeft, Swords, LogOut, Copy, Check, Send, UserCircle } from "lucide-react";
 import { socket } from "../../socket";
 import { useProfile } from "../../context/ProfileContext";
+import { useAuth } from "../../context/AuthContext";
 
 function jerseyNum(id) {
   let h = 0;
@@ -17,12 +18,20 @@ function timeAgo(ts) {
 
 export default function BuscarRival() {
   const { openProfile } = useProfile();
+  const { user } = useAuth();
   const [screen, setScreen] = useState("home");
   const [nickname, setNickname] = useState("");
   const [error, setError] = useState("");
   const [onlineCount, setOnlineCount] = useState(0);
   const [queueList, setQueueList] = useState([]);
   const [room, setRoom] = useState(null);
+
+  // Si hay sesión activa, el apodo de la cuenta reemplaza al escrito a mano.
+  // Todo lo demás (buscar, retar, chat, IP) sigue usando la misma variable
+  // "nickname" de siempre, así que no hace falta tocar esa lógica.
+  useEffect(() => {
+    if (user) setNickname(user.username);
+  }, [user]);
   const [myIp, setMyIp] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [copiedIp, setCopiedIp] = useState(false);
@@ -153,15 +162,24 @@ export default function BuscarRival() {
           </p>
 
           <div className="w-full max-w-sm mb-6 text-left">
-            <label className="block text-xs font-semibold mb-2 tracking-wide text-chalkDim">TU APODO</label>
-            <input
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value.slice(0, 18))}
-              onKeyDown={(e) => e.key === "Enter" && startSearching()}
-              placeholder="Ej. Chicharito10"
-              aria-label="Tu apodo"
-              className="w-full rounded-xl px-4 py-3 outline-none border border-turf bg-pitchCard text-chalk focus:ring-2 focus:ring-floodlight"
-            />
+            {user ? (
+              <div className="rounded-xl px-4 py-3 border border-turf bg-pitchCard">
+                <p className="text-xs tracking-wide text-chalkDim mb-1">JUGANDO COMO</p>
+                <p className="font-display text-lg text-floodlight">Bienvenido, {user.username}</p>
+              </div>
+            ) : (
+              <>
+                <label className="block text-xs font-semibold mb-2 tracking-wide text-chalkDim">TU APODO</label>
+                <input
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value.slice(0, 18))}
+                  onKeyDown={(e) => e.key === "Enter" && startSearching()}
+                  placeholder="Ej. Chicharito10"
+                  aria-label="Tu apodo"
+                  className="w-full rounded-xl px-4 py-3 outline-none border border-turf bg-pitchCard text-chalk focus:ring-2 focus:ring-floodlight"
+                />
+              </>
+            )}
             {error && <p className="text-sm mt-2 text-home">{error}</p>}
           </div>
 

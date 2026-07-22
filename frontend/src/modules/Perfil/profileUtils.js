@@ -7,8 +7,10 @@
 export function buildPlayerProfile(player) {
   return {
     id: player?.socketId || player?.id || "invitado",
+    playerId: player?.playerId || null,
     name: player?.nickname || "Jugador invitado",
     photoUrl: player?.photoUrl || null,
+    background: player?.background || "clasico",
     country: player?.country || null, // ej. { flag: "🇲🇽", name: "México" } cuando exista
     points: typeof player?.points === "number" ? player.points : null,
     memberSince: player?.memberSince || null,

@@ -69,8 +69,22 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const updateProfile = async (partial) => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const res = await fetch(`${API_URL}/api/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(partial),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "No se pudo actualizar tu perfil.");
+    setUser(data.user);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, register, login, logout, updateProfile }}>
+      {children}
+    </AuthContext.Provider>
   );
 }
 

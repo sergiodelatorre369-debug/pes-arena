@@ -8,12 +8,16 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  passwordHash String
-  countryCode  String?
-  countryName  String?
-  countryFlag  String?
-  points       Int      @default(0)
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  playerNumber   Int      @unique @default(autoincrement())
+  username       String   @unique
+  passwordHash   String
+  countryCode    String?
+  countryName    String?
+  countryFlag    String?
+  photoUrl       String?  @db.Text
+  background     String   @default("clasico")
+  points         Int      @default(0)
+  confiabilidad  Int      @default(100)
+  createdAt      DateTime @default(now())
 }

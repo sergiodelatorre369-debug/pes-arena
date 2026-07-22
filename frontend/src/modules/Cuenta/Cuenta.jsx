@@ -1,17 +1,22 @@
 import { useState } from "react";
-import { LogOut, UserPlus, LogIn } from "lucide-react";
+import { LogOut, UserPlus, LogIn, Camera } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ProfileCard from "../Perfil/ProfileCard";
+import { BACKGROUNDS } from "../Perfil/backgrounds";
+import { resizeImageToDataUrl } from "./imageUtils";
 import { COUNTRIES } from "./countries";
 
 export default function Cuenta() {
-  const { user, loading, register, login, logout } = useAuth();
+  const { user, loading, register, login, logout, updateProfile } = useAuth();
   const [mode, setMode] = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [countryCode, setCountryCode] = useState(COUNTRIES[0].code);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   if (loading) {
     return (
@@ -24,18 +29,77 @@ export default function Cuenta() {
   if (user) {
     const profile = {
       name: user.username,
-      photoUrl: null,
+      photoUrl: user.photoUrl,
+      background: user.background,
+      playerId: user.playerId,
       country: user.countryFlag ? { flag: user.countryFlag, name: user.countryName } : null,
       points: user.points,
+      confiabilidad: user.confiabilidad,
       memberSince: user.createdAt,
     };
+
+    const handlePhotoChange = async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = ""; // permite volver a elegir el mismo archivo después
+      if (!file) return;
+      setProfileError("");
+      setUploadingPhoto(true);
+      try {
+        const dataUrl = await resizeImageToDataUrl(file);
+        await updateProfile({ photoUrl: dataUrl });
+      } catch (err) {
+        setProfileError(err.message);
+      } finally {
+        setUploadingPhoto(false);
+      }
+    };
+
+    const handleBackgroundSelect = async (id) => {
+      if (id === user.background) return;
+      setProfileError("");
+      try {
+        await updateProfile({ background: id });
+      } catch (err) {
+        setProfileError(err.message);
+      }
+    };
+
     return (
       <div className="min-h-screen bg-pitch text-chalk font-body px-5 py-8 max-w-md mx-auto">
-        <h2 className="text-3xl mb-6 font-display">Mi Cuenta</h2>
+        <h2 className="text-3xl mb-1 font-display">Mi Cuenta</h2>
+        <p className="text-sm mb-6 text-chalkDim">Bienvenido, {user.username} 👋</p>
+
         <ProfileCard profile={profile} />
+
+        <label className="mt-4 flex items-center justify-center gap-2 w-full rounded-xl py-3 font-bold border border-turf text-chalk cursor-pointer">
+          <Camera size={18} />
+          {uploadingPhoto ? "Subiendo…" : "Cambiar foto"}
+          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} disabled={uploadingPhoto} />
+        </label>
+
+        <div className="mt-6">
+          <p className="text-xs font-semibold mb-2 tracking-wide text-chalkDim">FONDO DE LA TARJETA</p>
+          <div className="grid grid-cols-4 gap-2">
+            {BACKGROUNDS.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => handleBackgroundSelect(b.id)}
+                title={b.name}
+                aria-label={`Fondo ${b.name}`}
+                className={`h-12 rounded-lg border-2 transition-colors ${
+                  user.background === b.id ? "border-floodlight" : "border-turf"
+                }`}
+                style={{ background: `linear-gradient(160deg, ${b.from}, ${b.to})` }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {profileError && <p className="text-sm text-home mt-3">{profileError}</p>}
+
         <button
           onClick={logout}
-          className="mt-6 w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold border border-turf text-chalkDim"
+          className="mt-8 w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold border border-turf text-chalkDim"
         >
           <LogOut size={18} /> Cerrar sesión
         </button>
