@@ -155,8 +155,8 @@ export default function BuscarRival() {
     <div className="min-h-screen bg-pitch text-chalk font-body">
       {screen === "home" && (
         <div className="min-h-screen flex flex-col items-center justify-center px-6 py-12 text-center">
-          <div className="mb-2 text-xs tracking-widest font-semibold text-floodlight">PPSSPP · ONLINE · 1V1</div>
-          <h1 className="text-6xl mb-3 font-display tracking-wide">PES ARENA ONLINE</h1>
+          <div className="mb-2 text-xs tracking-widest font-semibold text-floodlight">eFootball PES PPSSPP · ONLINE · 1V1</div>
+          <h1 className="text-6xl mb-3 font-display tracking-wide">PES ARENA</h1>
           <p className="max-w-sm mb-10 text-chalkDim">
             Encuentra rival, Entra al Estadio Arena, Compite y Diviertete.
           </p>
