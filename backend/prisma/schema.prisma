@@ -21,3 +21,51 @@ model User {
   confiabilidad  Int      @default(100)
   createdAt      DateTime @default(now())
 }
+
+// ---------------------------------------------------------------------------
+// Módulo Torneos — Fase 1 (núcleo: Copa). "type" ya distingue copa/liga para
+// que la Fase 3 (Liga) reutilice estas mismas tablas sin migraciones nuevas.
+// ---------------------------------------------------------------------------
+model Tournament {
+  id              String   @id @default(cuid())
+  name            String
+  type            String   @default("copa") // copa (fase 1) | liga (fase 3)
+  status          String   @default("inscripciones") // inscripciones | grupos | eliminatorias | finalizado
+  minPlayers      Int      @default(4)
+  maxGroupSize    Int      @default(4)
+  advancePerGroup Int      @default(2)
+  championId      String?
+  createdAt       DateTime @default(now())
+  entries         TournamentEntry[]
+  matches         TournamentMatch[]
+}
+
+model TournamentEntry {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  userId       String
+  groupName    String?
+  joinedAt     DateTime   @default(now())
+
+  @@unique([tournamentId, userId])
+}
+
+model TournamentMatch {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  phase        String // grupos | knockout
+  round        String? // "Grupo A", "Octavos", "Cuartos", "Semifinal", "Final"
+  playerAId    String
+  playerBId    String
+  ipA          String?
+  ipB          String?
+  reportA      Json? // lo que el jugador A dice que fue el marcador
+  reportB      Json? // lo que el jugador B dice que fue el marcador
+  scoreA       Int?
+  scoreB       Int?
+  status       String     @default("pendiente") // pendiente | aprobado | conflicto
+  messages     Json       @default("[]")
+  createdAt    DateTime   @default(now())
+}
