@@ -6,7 +6,7 @@ import crypto from "crypto";
 import { prisma } from "./db.js";
 import { hashPassword, comparePassword, signToken, authMiddleware, publicUser } from "./auth.js";
 import { assignGroups, roundRobinPairs, computeStandings, seedKnockout, roundName, statsForPlayer } from "./tournaments.js";
-import { assignTeams } from "./teams.js";
+import { assignTeams, TEAMS_BANK } from "./teams.js";
 
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
@@ -314,6 +314,13 @@ async function maybeAdvanceTournament(tournamentId) {
     await addNews(tournamentId, `🔥 ¡Ya están definidos los cruces de ${round}!`);
   }
 }
+
+// Banco de Equipos: público, sin sesión. Muestra la lista completa desde
+// la que se reparte al azar — si editas backend/src/teams.js, se refleja
+// aquí solo, sin tocar nada más.
+app.get("/api/teams", (req, res) => {
+  res.json({ teams: TEAMS_BANK });
+});
 
 app.get("/api/tournaments", async (req, res) => {
   try {
