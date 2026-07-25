@@ -185,6 +185,92 @@ async function addNews(tournamentId, text) {
   await prisma.tournament.update({ where: { id: tournamentId }, data: { news } });
 }
 
+async function adjustConfiabilidad(userId, delta) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return;
+  const next = Math.max(0, Math.min(100, user.confiabilidad + delta));
+  await prisma.user.update({ where: { id: userId }, data: { confiabilidad: next } });
+}
+
+// ---------------------------------------------------------------------------
+// Fase 2 — Motor de temporadas: revisa partidos vencidos y los decide solo.
+// Reglas (deliberadamente simples — resolver conflictos "de a dos marcadores
+// distintos" es la Fase 4, esto solo atiende inasistencia):
+//   - Reportó uno solo -> ese gana con su marcador, al ausente le baja la
+//     confiabilidad.
+//   - No reportó ninguno -> si alguno mostró actividad (mensaje, IP,
+//     confirmación) sin reportar, se le castiga menos que al que nunca
+//     apareció; si NINGUNO mostró nada, queda 0-0 y a los dos les baja igual.
+// ---------------------------------------------------------------------------
+const AUSENCIA_PENALTY = 15;
+const INACTIVIDAD_PENALTY = 8;
+
+async function resolveExpiredMatches() {
+  const now = new Date();
+  const expired = await prisma.tournamentMatch.findMany({
+    where: { status: "pendiente", deadline: { lte: now } },
+  });
+  const realExpired = expired.filter((m) => m.playerAId !== m.playerBId);
+  const touchedTournaments = new Set();
+
+  for (const m of realExpired) {
+    const aReported = !!m.reportA;
+    const bReported = !!m.reportB;
+    let scoreA, scoreB, note;
+
+    if (aReported && !bReported) {
+      scoreA = m.reportA.scoreA;
+      scoreB = m.reportA.scoreB;
+      note = "⏰ Se venció el plazo. El jugador B no reportó — gana el jugador A con su marcador.";
+      await adjustConfiabilidad(m.playerBId, -AUSENCIA_PENALTY);
+    } else if (bReported && !aReported) {
+      scoreA = m.reportB.scoreA;
+      scoreB = m.reportB.scoreB;
+      note = "⏰ Se venció el plazo. El jugador A no reportó — gana el jugador B con su marcador.";
+      await adjustConfiabilidad(m.playerAId, -AUSENCIA_PENALTY);
+    } else {
+      scoreA = 0;
+      scoreB = 0;
+      const aActive = !!m.lastActiveA;
+      const bActive = !!m.lastActiveB;
+      note = "⏰ Se venció el plazo y ninguno reportó el resultado. Queda como empate técnico 0-0.";
+      await adjustConfiabilidad(m.playerAId, aActive ? -INACTIVIDAD_PENALTY : -AUSENCIA_PENALTY);
+      await adjustConfiabilidad(m.playerBId, bActive ? -INACTIVIDAD_PENALTY : -AUSENCIA_PENALTY);
+    }
+
+    const messages = [...(m.messages || []), { id: crypto.randomUUID(), type: "system", text: note, ts: Date.now() }];
+    await prisma.tournamentMatch.update({
+      where: { id: m.id },
+      data: { status: "aprobado", scoreA, scoreB, approvedAt: now, autoResolved: true, messages },
+    });
+
+    const byId = await withPlayers([m], ["playerAId", "playerBId"]);
+    const nameA = byId[m.playerAId]?.username || "Jugador A";
+    const nameB = byId[m.playerBId]?.username || "Jugador B";
+    await addNews(m.tournamentId, `⏰ ${nameA} ${scoreA}-${scoreB} ${nameB} (resultado automático por tiempo vencido)`);
+    touchedTournaments.add(m.tournamentId);
+  }
+
+  // Avisos de "se acaba el tiempo" — una sola vez por partido, dentro de su propia Sala.
+  const soon = new Date(now.getTime() + 24 * 3600 * 1000);
+  const upcoming = await prisma.tournamentMatch.findMany({
+    where: { status: "pendiente", reminderSent: false, deadline: { gt: now, lte: soon } },
+  });
+  for (const m of upcoming.filter((x) => x.playerAId !== x.playerBId)) {
+    const messages = [
+      ...(m.messages || []),
+      { id: crypto.randomUUID(), type: "system", text: "⏰ Queda menos de 1 día para el plazo de este partido.", ts: Date.now() },
+    ];
+    await prisma.tournamentMatch.update({ where: { id: m.id }, data: { reminderSent: true, messages } });
+  }
+
+  for (const tournamentId of touchedTournaments) {
+    await maybeAdvanceTournament(tournamentId);
+  }
+
+  return { resolved: realExpired.length, reminders: upcoming.length };
+}
+
 async function ensureActiveTournament() {
   const active = await prisma.tournament.findFirst({
     where: { status: { not: "finalizado" } },
@@ -218,9 +304,10 @@ async function maybeAdvanceTournament(tournamentId) {
       groups[g].push(userId);
     });
     const matchData = [];
+    const deadline = new Date(Date.now() + tournament.deadlineHours * 3600 * 1000);
     Object.entries(groups).forEach(([groupName, members]) => {
       roundRobinPairs(members).forEach(([a, b]) => {
-        matchData.push({ tournamentId, phase: "grupos", round: `Grupo ${groupName}`, playerAId: a, playerBId: b });
+        matchData.push({ tournamentId, phase: "grupos", round: `Grupo ${groupName}`, playerAId: a, playerBId: b, deadline });
       });
     });
     await prisma.tournamentMatch.createMany({ data: matchData });
@@ -260,7 +347,8 @@ async function maybeAdvanceTournament(tournamentId) {
 
     const { pairs, byes } = seedKnockout(qualified);
     const round = roundName(qualified.length);
-    const matchData = pairs.map(([a, b]) => ({ tournamentId, phase: "knockout", round, playerAId: a, playerBId: b }));
+    const knockoutDeadline = new Date(Date.now() + tournament.deadlineHours * 3600 * 1000);
+    const matchData = pairs.map(([a, b]) => ({ tournamentId, phase: "knockout", round, playerAId: a, playerBId: b, deadline: knockoutDeadline }));
     await prisma.tournamentMatch.createMany({ data: matchData });
     // Los jugadores con bye avanzan directo: se guardan como partido ya aprobado contra sí mismos
     // para que el cálculo de "ronda actual" los cuente como ganadores sin jugar.
@@ -302,7 +390,8 @@ async function maybeAdvanceTournament(tournamentId) {
 
     const { pairs, byes } = seedKnockout(winners);
     const round = roundName(winners.length);
-    const matchData = pairs.map(([a, b]) => ({ tournamentId, phase: "knockout", round, playerAId: a, playerBId: b }));
+    const nextDeadline = new Date(Date.now() + tournament.deadlineHours * 3600 * 1000);
+    const matchData = pairs.map(([a, b]) => ({ tournamentId, phase: "knockout", round, playerAId: a, playerBId: b, deadline: nextDeadline }));
     await prisma.tournamentMatch.createMany({ data: matchData });
     await Promise.all(
       byes.map((userId) =>
@@ -320,6 +409,23 @@ async function maybeAdvanceTournament(tournamentId) {
 // aquí solo, sin tocar nada más.
 app.get("/api/teams", (req, res) => {
   res.json({ teams: TEAMS_BANK });
+});
+
+// Fase 2 — a esta ruta le toca la puerta el Cron Job de Render cada hora.
+// Protegida con un secreto propio (no el mismo JWT de los usuarios) porque
+// no la llama una persona con sesión, la llama un robot con horario.
+app.post("/api/cron/check-deadlines", async (req, res) => {
+  const secret = req.headers["x-cron-secret"];
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: "No autorizado." });
+  }
+  try {
+    const result = await resolveExpiredMatches();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("Error en /api/cron/check-deadlines:", err);
+    res.status(500).json({ error: "Falló la revisión de plazos." });
+  }
 });
 
 app.get("/api/tournaments", async (req, res) => {

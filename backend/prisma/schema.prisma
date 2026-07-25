@@ -34,6 +34,7 @@ model Tournament {
   minPlayers      Int      @default(4)
   maxGroupSize    Int      @default(4)
   advancePerGroup Int      @default(2)
+  deadlineHours   Int      @default(72) // plazo por partido — Fase 2, motor de temporadas
   championId      String?
   news            Json     @default("[]") // Noticias del Torneo — eventos publicados automáticamente
   createdAt       DateTime @default(now())
@@ -54,23 +55,26 @@ model TournamentEntry {
 }
 
 model TournamentMatch {
-  id           String     @id @default(cuid())
-  tournamentId String
-  tournament   Tournament @relation(fields: [tournamentId], references: [id])
-  phase        String // grupos | knockout
-  round        String? // "Grupo A", "Octavos", "Cuartos", "Semifinal", "Final"
-  playerAId    String
-  playerBId    String
-  ipA          String?
-  ipB          String?
-  reportA      Json? // lo que el jugador A dice que fue el marcador
-  reportB      Json? // lo que el jugador B dice que fue el marcador
-  scoreA       Int?
-  scoreB       Int?
-  status       String     @default("pendiente") // pendiente | aprobado | conflicto
-  messages     Json       @default("[]")
-  lastActiveA  DateTime? // Sistema de Evidencias — para la futura Fase 4, no toma decisiones todavía
-  lastActiveB  DateTime?
-  approvedAt   DateTime?
-  createdAt    DateTime   @default(now())
+  id            String     @id @default(cuid())
+  tournamentId  String
+  tournament    Tournament @relation(fields: [tournamentId], references: [id])
+  phase         String // grupos | knockout
+  round         String? // "Grupo A", "Octavos", "Cuartos", "Semifinal", "Final"
+  playerAId     String
+  playerBId     String
+  ipA           String?
+  ipB           String?
+  reportA       Json? // lo que el jugador A dice que fue el marcador
+  reportB       Json? // lo que el jugador B dice que fue el marcador
+  scoreA        Int?
+  scoreB        Int?
+  status        String     @default("pendiente") // pendiente | aprobado | conflicto
+  messages      Json       @default("[]")
+  lastActiveA   DateTime? // Sistema de Evidencias
+  lastActiveB   DateTime?
+  deadline      DateTime? // Fase 2 — motor de temporadas
+  reminderSent  Boolean    @default(false)
+  autoResolved  Boolean    @default(false) // true si el sistema lo decidió por inasistencia, no los jugadores
+  approvedAt    DateTime?
+  createdAt     DateTime   @default(now())
 }

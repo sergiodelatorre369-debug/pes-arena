@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Copy, Check, Send, CalendarClock } from "lucide-react";
+import { ArrowLeft, Copy, Check, Send, CalendarClock, Clock } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import TeamBadge from "../../components/TeamBadge";
 import { tournamentsApi } from "./api";
@@ -13,6 +13,15 @@ function timeAgo(dateStr) {
   if (s < 3600) return `hace ${Math.floor(s / 60)}min`;
   if (s < 86400) return `hace ${Math.floor(s / 3600)}h`;
   return `hace ${Math.floor(s / 86400)}d`;
+}
+
+function deadlineLabel(deadline) {
+  if (!deadline) return null;
+  const ms = new Date(deadline).getTime() - Date.now();
+  if (ms <= 0) return { text: "Plazo vencido, en revisión", urgent: true };
+  const hours = ms / 3600000;
+  if (hours < 24) return { text: `Vence en ${Math.ceil(hours)}h`, urgent: true };
+  return { text: `Vence en ${Math.ceil(hours / 24)} días`, urgent: false };
 }
 
 export default function MatchRoom({ matchId, onBack }) {
@@ -116,9 +125,20 @@ export default function MatchRoom({ matchId, onBack }) {
         <span className="text-xs font-semibold tracking-wide text-floodlight">{match.round}</span>
       </div>
 
+      {match.status !== "aprobado" && deadlineLabel(match.deadline) && (
+        <div className={`px-5 py-2 text-xs text-center flex items-center justify-center gap-1 ${
+          deadlineLabel(match.deadline).urgent ? "bg-homeDim" : "bg-pitchCard text-chalkDim"
+        }`}>
+          <Clock size={12} /> {deadlineLabel(match.deadline).text}
+        </div>
+      )}
+
       {match.status === "aprobado" && (
         <div className="px-5 py-2 text-sm text-center bg-pitchCard">
           ✅ Resultado aprobado: {match.scoreA} - {match.scoreB}
+          {match.autoResolved && (
+            <div className="text-xs text-chalkDim mt-1">(decidido automático por tiempo vencido)</div>
+          )}
         </div>
       )}
       {match.status === "conflicto" && (
