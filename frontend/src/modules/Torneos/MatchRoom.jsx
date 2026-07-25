@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Copy, Check, Send } from "lucide-react";
+import { ArrowLeft, Copy, Check, Send, CalendarClock } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { tournamentsApi } from "./api";
 
 const POLL_MS = 3000;
+
+function timeAgo(dateStr) {
+  if (!dateStr) return null;
+  const s = Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000));
+  if (s < 60) return "hace un momento";
+  if (s < 3600) return `hace ${Math.floor(s / 60)}min`;
+  if (s < 86400) return `hace ${Math.floor(s / 3600)}h`;
+  return `hace ${Math.floor(s / 86400)}d`;
+}
 
 export default function MatchRoom({ matchId, onBack }) {
   const { user } = useAuth();
@@ -46,23 +55,17 @@ export default function MatchRoom({ matchId, onBack }) {
   const isA = match.playerAId === user?.id;
   const me = isA ? match.playerA : match.playerB;
   const rival = isA ? match.playerB : match.playerA;
+  const myTeam = isA ? match.teamA : match.teamB;
+  const rivalTeam = isA ? match.teamB : match.teamA;
   const rivalIp = isA ? match.ipB : match.ipA;
   const myReport = isA ? match.reportA : match.reportB;
+  const rivalLastActive = timeAgo(isA ? match.lastActiveB : match.lastActiveA);
 
-  const sendSystemMsg = async (text) => {
+  const sendMessage = async (text, type = "chat") => {
+    if (!text || !text.trim()) return;
     try {
-      const { match: updated } = await tournamentsApi.sendMessage(matchId, text, "system");
-      setMatch(updated);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const sendChat = async () => {
-    if (!chatInput.trim()) return;
-    try {
-      const { match: updated } = await tournamentsApi.sendMessage(matchId, chatInput.trim(), "chat");
-      setChatInput("");
+      const { match: updated } = await tournamentsApi.sendMessage(matchId, text.trim(), type);
+      if (type !== "system") setChatInput("");
       setMatch(updated);
     } catch (err) {
       setError(err.message);
@@ -101,6 +104,8 @@ export default function MatchRoom({ matchId, onBack }) {
     }
   };
 
+  const MESSAGE_LABEL = { proposal: "📅 Propuesta de horario", confirmation: "✅ Confirmación" };
+
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-pitch text-chalk font-body">
       <div className="flex items-center justify-between px-5 py-4 border-b border-turf">
@@ -125,11 +130,14 @@ export default function MatchRoom({ matchId, onBack }) {
         <div className="text-left">
           <div className="text-xs mb-1 text-chalkDim">TÚ</div>
           <div className="text-xl text-home font-display">{me?.username}</div>
+          {myTeam && <div className="text-xs text-chalkDim">{myTeam}</div>}
         </div>
         <div className="text-2xl text-chalkDim font-display">VS</div>
         <div className="text-right">
           <div className="text-xs mb-1 text-chalkDim">RIVAL</div>
           <div className="text-xl text-away font-display">{rival?.username}</div>
+          {rivalTeam && <div className="text-xs text-chalkDim">{rivalTeam}</div>}
+          {rivalLastActive && <div className="text-[10px] text-chalkDim mt-1">Visto {rivalLastActive}</div>}
         </div>
       </div>
 
@@ -162,12 +170,18 @@ export default function MatchRoom({ matchId, onBack }) {
         {["Ya creé sala", "No conecta", "Vuelve a crear", "Listo, a jugar"].map((txt) => (
           <button
             key={txt}
-            onClick={() => sendSystemMsg(txt)}
+            onClick={() => sendMessage(txt, "system")}
             className="text-xs rounded-full px-3 py-1.5 border border-turf text-chalkDim"
           >
             {txt}
           </button>
         ))}
+        <button
+          onClick={() => sendMessage("Confirmo que estoy disponible para jugar.", "confirmation")}
+          className="text-xs rounded-full px-3 py-1.5 border border-floodlight text-floodlight"
+        >
+          ✅ Confirmar disponibilidad
+        </button>
       </div>
 
       {match.status !== "aprobado" && (
@@ -221,7 +235,12 @@ export default function MatchRoom({ matchId, onBack }) {
               }`}
               style={{ maxWidth: "80%" }}
             >
-              {m.from && <div className="text-[10px] opacity-70 mb-0.5">{m.from}</div>}
+              {m.from && (
+                <div className="text-[10px] opacity-70 mb-0.5">
+                  {m.from}
+                  {MESSAGE_LABEL[m.type] ? ` · ${MESSAGE_LABEL[m.type]}` : ""}
+                </div>
+              )}
               {m.text}
             </div>
           );
@@ -233,11 +252,19 @@ export default function MatchRoom({ matchId, onBack }) {
         <input
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendChat()}
-          placeholder="Escribe un mensaje…"
+          onKeyDown={(e) => e.key === "Enter" && sendMessage(chatInput, "chat")}
+          placeholder="Escribe un mensaje o propón un horario…"
           className="flex-1 rounded-lg px-3 py-2 text-sm outline-none border border-turf bg-pitchCard"
         />
-        <button onClick={sendChat} aria-label="Enviar mensaje" className="rounded-lg px-3 bg-home text-white">
+        <button
+          onClick={() => sendMessage(chatInput, "proposal")}
+          aria-label="Enviar como propuesta de horario"
+          title="Enviar como propuesta de horario"
+          className="rounded-lg px-3 border border-floodlight text-floodlight"
+        >
+          <CalendarClock size={18} />
+        </button>
+        <button onClick={() => sendMessage(chatInput, "chat")} aria-label="Enviar mensaje" className="rounded-lg px-3 bg-home text-white">
           <Send size={18} />
         </button>
       </div>

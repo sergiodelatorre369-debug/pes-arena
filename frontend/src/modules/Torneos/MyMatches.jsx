@@ -37,6 +37,7 @@ export default function MyMatches({ tournamentId, onOpenMatch }) {
           <div className="flex-1">
             <div className="text-xs text-chalkDim mb-1">{m.round}</div>
             <div className="font-semibold">vs {m.rival?.username || "Rival"}</div>
+            {m.rivalTeam && <div className="text-xs text-floodlight">{m.rivalTeam}</div>}
             {m.status === "conflicto" && <div className="text-xs text-home mt-1">Marcadores en conflicto</div>}
           </div>
           <ChevronRight size={18} className="text-chalkDim" />

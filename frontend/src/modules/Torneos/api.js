@@ -24,6 +24,7 @@ export const tournamentsApi = {
   participants: (id) => request(`/api/tournaments/${id}/participants`),
   standings: (id) => request(`/api/tournaments/${id}/standings`),
   bracket: (id) => request(`/api/tournaments/${id}/bracket`),
+  results: (id) => request(`/api/tournaments/${id}/results`),
   myMatches: (id) => request(`/api/tournaments/${id}/my-matches`),
   matchDetail: (matchId) => request(`/api/tournaments/matches/${matchId}`),
   sendMessage: (matchId, text, type) =>

@@ -1,7 +1,27 @@
 import { useEffect, useState } from "react";
+import { useProfile } from "../../context/ProfileContext";
+import PesArenaAvatar from "../../components/PesArenaAvatar";
+import { getBackground } from "../Perfil/backgrounds";
 import { tournamentsApi } from "./api";
 
+// Convierte un participante del torneo al formato que espera la tarjeta
+// de perfil que ya existe (la misma de Cuenta/BuscarRival) — se reutiliza
+// tal cual, sin duplicar el diseño del perfil.
+function toProfile(p) {
+  return {
+    nickname: p.username,
+    photoUrl: p.photoUrl,
+    background: p.background,
+    playerId: p.playerId,
+    country: p.countryFlag ? { flag: p.countryFlag, name: p.countryName } : null,
+    points: p.points,
+    confiabilidad: p.confiabilidad,
+    memberSince: p.createdAt,
+  };
+}
+
 export default function Participants({ tournamentId }) {
+  const { openProfile } = useProfile();
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -26,18 +46,39 @@ export default function Participants({ tournamentId }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {participants.map((p) => (
-        <div key={p.id} className="flex items-center justify-between rounded-xl border border-turf bg-pitchCard px-4 py-3">
-          <div className="flex items-center gap-2">
-            {p.countryFlag && <span>{p.countryFlag}</span>}
-            <span className="font-semibold text-sm">{p.username}</span>
-          </div>
-          {p.groupName && (
-            <span className="text-xs font-mono2 text-floodlight">Grupo {p.groupName}</span>
-          )}
-        </div>
-      ))}
+    <div className="grid grid-cols-2 gap-3">
+      {participants.map((p) => {
+        const bg = getBackground(p.background);
+        return (
+          <button
+            key={p.id}
+            onClick={() => openProfile({ ...toProfile(p), socketId: p.id })}
+            className="rounded-xl p-4 text-center border border-turf"
+            style={{ background: `linear-gradient(160deg, ${bg.from}, ${bg.to})` }}
+          >
+            <div className="flex justify-center mb-2">
+              <PesArenaAvatar photoUrl={p.photoUrl} name={p.username} size={56} />
+            </div>
+            <p className="font-semibold text-sm truncate">{p.username}</p>
+            {p.playerId && <p className="text-[10px] font-mono2 text-floodlight">{p.playerId}</p>}
+            <div className="flex items-center justify-center gap-1 text-xs text-chalkDim mt-1">
+              {p.countryFlag && <span>{p.countryFlag}</span>}
+              {p.team && <span className="truncate">{p.team}</span>}
+            </div>
+            {p.groupName && <p className="text-[10px] text-chalkDim mt-1">Grupo {p.groupName}</p>}
+            <div className="flex items-center justify-center gap-2 mt-2 text-[10px] text-chalkDim">
+              <span>{p.points} pts</span>
+              <span>·</span>
+              <span>{p.confiabilidad}% conf.</span>
+            </div>
+            {p.stats && (
+              <p className="text-[10px] text-chalkDim mt-1">
+                {p.stats.pj} PJ · {p.stats.pg}G {p.stats.pe}E {p.stats.pp}P
+              </p>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

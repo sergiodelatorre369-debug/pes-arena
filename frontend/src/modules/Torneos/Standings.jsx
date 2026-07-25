@@ -38,7 +38,10 @@ export default function Standings({ tournamentId }) {
               <tbody>
                 {group.table.map((row, i) => (
                   <tr key={row.userId} className={i % 2 === 0 ? "bg-pitch" : "bg-pitchCard"}>
-                    <td className="text-left px-3 py-2 font-semibold">{row.player?.username || "?"}</td>
+                    <td className="text-left px-3 py-2 font-semibold">
+                    {row.player?.username || "?"}
+                    {row.team && <div className="text-[10px] font-normal text-chalkDim">{row.team}</div>}
+                  </td>
                     <td className="text-center px-1.5 py-2">{row.pj}</td>
                     <td className="text-center px-1.5 py-2">{row.pg}</td>
                     <td className="text-center px-1.5 py-2">{row.pe}</td>

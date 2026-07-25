@@ -34,15 +34,17 @@ export default function Bracket({ tournamentId }) {
           <div className="flex flex-col gap-2">
             {rounds[round].map((m) => (
               <div key={m.id} className="rounded-xl border border-turf bg-pitchCard p-3 flex items-center justify-between text-sm">
-                <span className={m.status === "aprobado" && m.scoreA > m.scoreB ? "text-floodlight font-bold" : ""}>
-                  {m.playerA?.username || "?"}
-                </span>
+                <div className={m.status === "aprobado" && m.scoreA > m.scoreB ? "text-floodlight font-bold" : ""}>
+                  <div>{m.playerA?.username || "?"}</div>
+                  {m.teamA && <div className="text-[10px] text-chalkDim font-normal">{m.teamA}</div>}
+                </div>
                 <span className="text-chalkDim font-mono2">
                   {m.status === "aprobado" ? `${m.scoreA} - ${m.scoreB}` : "vs"}
                 </span>
-                <span className={m.status === "aprobado" && m.scoreB > m.scoreA ? "text-floodlight font-bold" : ""}>
-                  {m.playerB?.username || "?"}
-                </span>
+                <div className={m.status === "aprobado" && m.scoreB > m.scoreA ? "text-floodlight font-bold text-right" : "text-right"}>
+                  <div>{m.playerB?.username || "?"}</div>
+                  {m.teamB && <div className="text-[10px] text-chalkDim font-normal">{m.teamB}</div>}
+                </div>
               </div>
             ))}
           </div>

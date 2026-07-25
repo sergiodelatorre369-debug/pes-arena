@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trophy, Grid3x3, Swords, Users, ScrollText, Loader2 } from "lucide-react";
+import { ArrowLeft, Trophy, Grid3x3, Swords, Users, ScrollText, Loader2, ListChecks, Newspaper as NewspaperIcon } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { tournamentsApi } from "./api";
 import MyMatches from "./MyMatches";
@@ -7,6 +7,8 @@ import Standings from "./Standings";
 import Bracket from "./Bracket";
 import Participants from "./Participants";
 import Reglamento from "./Reglamento";
+import Resultados from "./Resultados";
+import Noticias from "./Noticias";
 import MatchRoom from "./MatchRoom";
 
 const STATUS_LABEL = {
@@ -20,7 +22,9 @@ const MENU = [
   { id: "mis-partidos", label: "Mis Partidos", icon: Swords },
   { id: "tabla", label: "Tabla", icon: Grid3x3 },
   { id: "eliminatorias", label: "Eliminatorias", icon: Trophy },
+  { id: "resultados", label: "Resultados", icon: ListChecks },
   { id: "participantes", label: "Participantes", icon: Users },
+  { id: "noticias", label: "Noticias", icon: NewspaperIcon },
   { id: "reglamento", label: "Reglamento", icon: ScrollText },
 ];
 
@@ -112,7 +116,9 @@ export default function TournamentDetail({ tournamentId, onBack }) {
       {view === "mis-partidos" && <MyMatches tournamentId={tournamentId} onOpenMatch={setActiveMatchId} />}
       {view === "tabla" && <Standings tournamentId={tournamentId} />}
       {view === "eliminatorias" && <Bracket tournamentId={tournamentId} />}
+      {view === "resultados" && <Resultados tournamentId={tournamentId} />}
       {view === "participantes" && <Participants tournamentId={tournamentId} />}
+      {view === "noticias" && <Noticias news={tournament?.news || []} />}
       {view === "reglamento" && <Reglamento />}
     </div>
   );
