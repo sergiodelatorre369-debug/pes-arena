@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trophy, Grid3x3, Swords, Users, ScrollText, Loader2, ListChecks, Newspaper as NewspaperIcon } from "lucide-react";
+import { ArrowLeft, Trophy, Grid3x3, Swords, Users, ScrollText, Loader2, ListChecks, Newspaper as NewspaperIcon, Shirt } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { tournamentsApi } from "./api";
 import MyMatches from "./MyMatches";
@@ -9,6 +9,7 @@ import Participants from "./Participants";
 import Reglamento from "./Reglamento";
 import Resultados from "./Resultados";
 import Noticias from "./Noticias";
+import TeamsBank from "./TeamsBank";
 import MatchRoom from "./MatchRoom";
 
 const STATUS_LABEL = {
@@ -24,6 +25,7 @@ const MENU = [
   { id: "eliminatorias", label: "Eliminatorias", icon: Trophy },
   { id: "resultados", label: "Resultados", icon: ListChecks },
   { id: "participantes", label: "Participantes", icon: Users },
+  { id: "equipos", label: "Banco de Equipos", icon: Shirt },
   { id: "noticias", label: "Noticias", icon: NewspaperIcon },
   { id: "reglamento", label: "Reglamento", icon: ScrollText },
 ];
@@ -118,6 +120,7 @@ export default function TournamentDetail({ tournamentId, onBack }) {
       {view === "eliminatorias" && <Bracket tournamentId={tournamentId} />}
       {view === "resultados" && <Resultados tournamentId={tournamentId} />}
       {view === "participantes" && <Participants tournamentId={tournamentId} />}
+      {view === "equipos" && <TeamsBank />}
       {view === "noticias" && <Noticias news={tournament?.news || []} />}
       {view === "reglamento" && <Reglamento />}
     </div>

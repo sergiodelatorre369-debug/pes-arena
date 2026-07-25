@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Copy, Check, Send, CalendarClock } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import TeamBadge from "../../components/TeamBadge";
 import { tournamentsApi } from "./api";
 
 const POLL_MS = 3000;
@@ -130,13 +131,23 @@ export default function MatchRoom({ matchId, onBack }) {
         <div className="text-left">
           <div className="text-xs mb-1 text-chalkDim">TÚ</div>
           <div className="text-xl text-home font-display">{me?.username}</div>
-          {myTeam && <div className="text-xs text-chalkDim">{myTeam}</div>}
+          {myTeam && (
+            <div className="flex items-center gap-1.5 text-xs text-chalkDim mt-1">
+              <TeamBadge team={myTeam} size={18} />
+              {myTeam}
+            </div>
+          )}
         </div>
         <div className="text-2xl text-chalkDim font-display">VS</div>
         <div className="text-right">
           <div className="text-xs mb-1 text-chalkDim">RIVAL</div>
           <div className="text-xl text-away font-display">{rival?.username}</div>
-          {rivalTeam && <div className="text-xs text-chalkDim">{rivalTeam}</div>}
+          {rivalTeam && (
+            <div className="flex items-center justify-end gap-1.5 text-xs text-chalkDim mt-1">
+              {rivalTeam}
+              <TeamBadge team={rivalTeam} size={18} />
+            </div>
+          )}
           {rivalLastActive && <div className="text-[10px] text-chalkDim mt-1">Visto {rivalLastActive}</div>}
         </div>
       </div>

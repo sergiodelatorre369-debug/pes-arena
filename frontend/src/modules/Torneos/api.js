@@ -18,6 +18,7 @@ async function request(path, options = {}) {
 }
 
 export const tournamentsApi = {
+  teamsBank: () => request("/api/teams"),
   list: () => request("/api/tournaments"),
   detail: (id) => request(`/api/tournaments/${id}`),
   join: (id) => request(`/api/tournaments/${id}/join`, { method: "POST" }),

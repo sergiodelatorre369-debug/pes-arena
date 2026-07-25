@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useProfile } from "../../context/ProfileContext";
 import PesArenaAvatar from "../../components/PesArenaAvatar";
+import TeamBadge from "../../components/TeamBadge";
 import { getBackground } from "../Perfil/backgrounds";
 import { tournamentsApi } from "./api";
 
@@ -63,6 +64,7 @@ export default function Participants({ tournamentId }) {
             {p.playerId && <p className="text-[10px] font-mono2 text-floodlight">{p.playerId}</p>}
             <div className="flex items-center justify-center gap-1 text-xs text-chalkDim mt-1">
               {p.countryFlag && <span>{p.countryFlag}</span>}
+              {p.team && <TeamBadge team={p.team} size={14} />}
               {p.team && <span className="truncate">{p.team}</span>}
             </div>
             {p.groupName && <p className="text-[10px] text-chalkDim mt-1">Grupo {p.groupName}</p>}
