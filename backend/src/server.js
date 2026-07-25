@@ -5,7 +5,8 @@ import cors from "cors";
 import crypto from "crypto";
 import { prisma } from "./db.js";
 import { hashPassword, comparePassword, signToken, authMiddleware, publicUser } from "./auth.js";
-import { assignGroups, roundRobinPairs, computeStandings, seedKnockout, roundName } from "./tournaments.js";
+import { assignGroups, roundRobinPairs, computeStandings, seedKnockout, roundName, statsForPlayer } from "./tournaments.js";
+import { assignTeams } from "./teams.js";
 
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
@@ -166,6 +167,24 @@ async function withPlayers(list, idFields) {
   return byId;
 }
 
+// Devuelve { userId: "Real Madrid" } — el equipo asignado a cada jugador
+// dentro de ESE torneo (no es un dato del perfil, cambia por torneo).
+async function withTeams(tournamentId, userIds) {
+  const entries = await prisma.tournamentEntry.findMany({
+    where: { tournamentId, userId: { in: [...new Set(userIds)] } },
+  });
+  return Object.fromEntries(entries.map((e) => [e.userId, e.team]));
+}
+
+// Noticias del Torneo: un historial simple de eventos, para que el módulo
+// se sienta vivo. No dispara nada más — solo se guarda y se muestra.
+async function addNews(tournamentId, text) {
+  const t = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  if (!t) return;
+  const news = [...(t.news || []), { id: crypto.randomUUID(), text, ts: Date.now() }].slice(-50);
+  await prisma.tournament.update({ where: { id: tournamentId }, data: { news } });
+}
+
 async function ensureActiveTournament() {
   const active = await prisma.tournament.findFirst({
     where: { status: { not: "finalizado" } },
@@ -184,9 +203,13 @@ async function maybeAdvanceTournament(tournamentId) {
     if (entries.length < tournament.minPlayers) return;
 
     const assignment = assignGroups(entries.map((e) => e.userId), tournament.maxGroupSize);
+    const teams = assignTeams(entries.length);
     await Promise.all(
-      entries.map((e) =>
-        prisma.tournamentEntry.update({ where: { id: e.id }, data: { groupName: assignment[e.userId] } })
+      entries.map((e, i) =>
+        prisma.tournamentEntry.update({
+          where: { id: e.id },
+          data: { groupName: assignment[e.userId], team: teams[i] },
+        })
       )
     );
     const groups = {};
@@ -202,6 +225,7 @@ async function maybeAdvanceTournament(tournamentId) {
     });
     await prisma.tournamentMatch.createMany({ data: matchData });
     await prisma.tournament.update({ where: { id: tournamentId }, data: { status: "grupos" } });
+    await addNews(tournamentId, `⚽ ¡Comenzó la fase de grupos! ${entries.length} jugadores, cada quien con su equipo asignado.`);
     return;
   }
 
@@ -227,6 +251,10 @@ async function maybeAdvanceTournament(tournamentId) {
         where: { id: tournamentId },
         data: { status: "finalizado", championId: qualified[0] || null },
       });
+      if (qualified[0]) {
+        const champ = await prisma.user.findUnique({ where: { id: qualified[0] } });
+        await addNews(tournamentId, `🏆 ¡${champ?.username || "Un jugador"} es el campeón del torneo!`);
+      }
       return;
     }
 
@@ -244,6 +272,7 @@ async function maybeAdvanceTournament(tournamentId) {
       )
     );
     await prisma.tournament.update({ where: { id: tournamentId }, data: { status: "eliminatorias" } });
+    await addNews(tournamentId, `🏟️ Terminó la fase de grupos. ¡Ya están definidos los cruces de ${round}!`);
     return;
   }
 
@@ -264,6 +293,10 @@ async function maybeAdvanceTournament(tournamentId) {
         where: { id: tournamentId },
         data: { status: "finalizado", championId: winners[0] || null },
       });
+      if (winners[0]) {
+        const champ = await prisma.user.findUnique({ where: { id: winners[0] } });
+        await addNews(tournamentId, `🏆 ¡${champ?.username || "Un jugador"} es el campeón del torneo!`);
+      }
       return;
     }
 
@@ -278,6 +311,7 @@ async function maybeAdvanceTournament(tournamentId) {
         })
       )
     );
+    await addNews(tournamentId, `🔥 ¡Ya están definidos los cruces de ${round}!`);
   }
 }
 
@@ -330,8 +364,16 @@ app.post("/api/tournaments/:id/join", authMiddleware, async (req, res) => {
 app.get("/api/tournaments/:id/participants", async (req, res) => {
   try {
     const entries = await prisma.tournamentEntry.findMany({ where: { tournamentId: req.params.id } });
+    const matches = await prisma.tournamentMatch.findMany({ where: { tournamentId: req.params.id } });
     const byId = await withPlayers(entries, ["userId"]);
-    res.json({ participants: entries.map((e) => ({ ...byId[e.userId], groupName: e.groupName })) });
+    res.json({
+      participants: entries.map((e) => ({
+        ...byId[e.userId],
+        groupName: e.groupName,
+        team: e.team,
+        stats: statsForPlayer(e.userId, matches),
+      })),
+    });
   } catch (err) {
     console.error("Error en /api/tournaments/:id/participants:", err);
     res.status(500).json({ error: "No se pudieron cargar los participantes." });
@@ -343,6 +385,7 @@ app.get("/api/tournaments/:id/standings", async (req, res) => {
     const entries = await prisma.tournamentEntry.findMany({ where: { tournamentId: req.params.id } });
     const matches = await prisma.tournamentMatch.findMany({ where: { tournamentId: req.params.id, phase: "grupos" } });
     const byId = await withPlayers(entries, ["userId"]);
+    const teamById = await withTeams(req.params.id, entries.map((e) => e.userId));
     const byGroup = {};
     entries.forEach((e) => {
       byGroup[e.groupName || "General"] = byGroup[e.groupName || "General"] || [];
@@ -350,7 +393,11 @@ app.get("/api/tournaments/:id/standings", async (req, res) => {
     });
     const standings = Object.entries(byGroup).map(([groupName, members]) => ({
       groupName,
-      table: computeStandings(members, matches).map((row) => ({ ...row, player: byId[row.userId] })),
+      table: computeStandings(members, matches).map((row) => ({
+        ...row,
+        player: byId[row.userId],
+        team: teamById[row.userId],
+      })),
     }));
     res.json({ standings });
   } catch (err) {
@@ -366,12 +413,19 @@ app.get("/api/tournaments/:id/bracket", async (req, res) => {
       orderBy: { createdAt: "asc" },
     });
     const byId = await withPlayers(matches, ["playerAId", "playerBId"]);
+    const teamById = await withTeams(req.params.id, matches.flatMap((m) => [m.playerAId, m.playerBId]));
     const rounds = {};
     matches
       .filter((m) => m.playerAId !== m.playerBId) // oculta los "bye" técnicos
       .forEach((m) => {
         rounds[m.round] = rounds[m.round] || [];
-        rounds[m.round].push({ ...m, playerA: byId[m.playerAId], playerB: byId[m.playerBId] });
+        rounds[m.round].push({
+          ...m,
+          playerA: byId[m.playerAId],
+          playerB: byId[m.playerBId],
+          teamA: teamById[m.playerAId],
+          teamB: teamById[m.playerBId],
+        });
       });
     res.json({ rounds });
   } catch (err) {
@@ -391,15 +445,44 @@ app.get("/api/tournaments/:id/my-matches", authMiddleware, async (req, res) => {
       orderBy: { createdAt: "asc" },
     });
     const byId = await withPlayers(matches, ["playerAId", "playerBId"]);
+    const teamById = await withTeams(req.params.id, matches.flatMap((m) => [m.playerAId, m.playerBId]));
     res.json({
       matches: matches.map((m) => ({
         ...m,
         rival: m.playerAId === req.userId ? byId[m.playerBId] : byId[m.playerAId],
+        rivalTeam: m.playerAId === req.userId ? teamById[m.playerBId] : teamById[m.playerAId],
+        myTeam: m.playerAId === req.userId ? teamById[m.playerAId] : teamById[m.playerBId],
       })),
     });
   } catch (err) {
     console.error("Error en /api/tournaments/:id/my-matches:", err);
     res.status(500).json({ error: "No se pudieron cargar tus partidos." });
+  }
+});
+
+// Muro de Resultados: cualquiera puede ver cómo va el torneo, sin sesión.
+app.get("/api/tournaments/:id/results", async (req, res) => {
+  try {
+    const matches = await prisma.tournamentMatch.findMany({
+      where: { tournamentId: req.params.id, status: "aprobado" },
+      orderBy: { approvedAt: "desc" },
+    });
+    const real = matches.filter((m) => m.playerAId !== m.playerBId); // sin los "bye" técnicos
+    const byId = await withPlayers(real, ["playerAId", "playerBId"]);
+    res.json({
+      results: real.map((m) => ({
+        id: m.id,
+        round: m.round,
+        playerA: byId[m.playerAId],
+        playerB: byId[m.playerBId],
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        approvedAt: m.approvedAt,
+      })),
+    });
+  } catch (err) {
+    console.error("Error en /api/tournaments/:id/results:", err);
+    res.status(500).json({ error: "No se pudo cargar el muro de resultados." });
   }
 });
 
@@ -414,7 +497,16 @@ app.get("/api/tournaments/matches/:matchId", authMiddleware, async (req, res) =>
   const { match, error } = await loadMatchForPlayer(req.params.matchId, req.userId);
   if (error) return res.status(error).json({ error: error === 404 ? "Partido no encontrado." : "No es tu partido." });
   const byId = await withPlayers([match], ["playerAId", "playerBId"]);
-  res.json({ match: { ...match, playerA: byId[match.playerAId], playerB: byId[match.playerBId] } });
+  const teamById = await withTeams(match.tournamentId, [match.playerAId, match.playerBId]);
+  res.json({
+    match: {
+      ...match,
+      playerA: byId[match.playerAId],
+      playerB: byId[match.playerBId],
+      teamA: teamById[match.playerAId],
+      teamB: teamById[match.playerBId],
+    },
+  });
 });
 
 app.post("/api/tournaments/matches/:matchId/message", authMiddleware, async (req, res) => {
@@ -423,13 +515,23 @@ app.post("/api/tournaments/matches/:matchId/message", authMiddleware, async (req
     if (error) return res.status(error).json({ error: "No es tu partido." });
     const { text, type } = req.body || {};
     if (!text || !text.trim()) return res.status(400).json({ error: "Mensaje vacío." });
-    const author = match.playerAId === req.userId ? match.playerA : match.playerB;
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    const validTypes = ["system", "proposal", "confirmation"];
     const messages = [
       ...(match.messages || []),
-      { id: crypto.randomUUID(), type: type === "system" ? "system" : "chat", from: user.username, text: text.trim().slice(0, 300), ts: Date.now() },
+      {
+        id: crypto.randomUUID(),
+        type: validTypes.includes(type) ? type : "chat",
+        from: user.username,
+        text: text.trim().slice(0, 300),
+        ts: Date.now(),
+      },
     ];
-    const updated = await prisma.tournamentMatch.update({ where: { id: match.id }, data: { messages } });
+    const activityField = match.playerAId === req.userId ? "lastActiveA" : "lastActiveB";
+    const updated = await prisma.tournamentMatch.update({
+      where: { id: match.id },
+      data: { messages, [activityField]: new Date() },
+    });
     res.json({ match: updated });
   } catch (err) {
     console.error("Error en /matches/:matchId/message:", err);
@@ -443,8 +545,9 @@ app.post("/api/tournaments/matches/:matchId/ip", authMiddleware, async (req, res
     if (error) return res.status(error).json({ error: "No es tu partido." });
     const { ip } = req.body || {};
     if (!ip || !ip.trim()) return res.status(400).json({ error: "IP vacía." });
-    const field = match.playerAId === req.userId ? "ipA" : "ipB";
-    const updated = await prisma.tournamentMatch.update({ where: { id: match.id }, data: { [field]: ip.trim().slice(0, 64) } });
+    const isA = match.playerAId === req.userId;
+    const data = { [isA ? "ipA" : "ipB"]: ip.trim().slice(0, 64), [isA ? "lastActiveA" : "lastActiveB"]: new Date() };
+    const updated = await prisma.tournamentMatch.update({ where: { id: match.id }, data });
     res.json({ match: updated });
   } catch (err) {
     console.error("Error en /matches/:matchId/ip:", err);
@@ -463,9 +566,14 @@ app.post("/api/tournaments/matches/:matchId/report", authMiddleware, async (req,
     if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
       return res.status(400).json({ error: "Marcador inválido." });
     }
-    const field = match.playerAId === req.userId ? "reportA" : "reportB";
+    const isA = match.playerAId === req.userId;
+    const field = isA ? "reportA" : "reportB";
+    const activityField = isA ? "lastActiveA" : "lastActiveB";
     const report = { scoreA, scoreB };
-    let updated = await prisma.tournamentMatch.update({ where: { id: match.id }, data: { [field]: report } });
+    let updated = await prisma.tournamentMatch.update({
+      where: { id: match.id },
+      data: { [field]: report, [activityField]: new Date() },
+    });
 
     const bothIn = updated.reportA && updated.reportB;
     if (bothIn) {
@@ -473,8 +581,12 @@ app.post("/api/tournaments/matches/:matchId/report", authMiddleware, async (req,
       if (same) {
         updated = await prisma.tournamentMatch.update({
           where: { id: match.id },
-          data: { status: "aprobado", scoreA: updated.reportA.scoreA, scoreB: updated.reportA.scoreB },
+          data: { status: "aprobado", scoreA: updated.reportA.scoreA, scoreB: updated.reportA.scoreB, approvedAt: new Date() },
         });
+        const byId = await withPlayers([updated], ["playerAId", "playerBId"]);
+        const nameA = byId[updated.playerAId]?.username || "Jugador A";
+        const nameB = byId[updated.playerBId]?.username || "Jugador B";
+        await addNews(match.tournamentId, `⚽ ${nameA} ${updated.scoreA}-${updated.scoreB} ${nameB}`);
         await maybeAdvanceTournament(match.tournamentId);
       } else {
         updated = await prisma.tournamentMatch.update({ where: { id: match.id }, data: { status: "conflicto" } });

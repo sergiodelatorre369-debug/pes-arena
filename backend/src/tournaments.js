@@ -92,3 +92,20 @@ export function roundName(playersRemaining) {
   if (playersRemaining <= 16) return "Octavos";
   return `Ronda de ${playersRemaining}`;
 }
+
+// Estadísticas básicas de un jugador dentro de un torneo (todas sus fases),
+// para el Álbum de Participantes.
+export function statsForPlayer(userId, matches) {
+  const stats = { pj: 0, pg: 0, pe: 0, pp: 0 };
+  matches
+    .filter((m) => m.status === "aprobado" && (m.playerAId === userId || m.playerBId === userId))
+    .forEach((m) => {
+      const mine = m.playerAId === userId ? m.scoreA : m.scoreB;
+      const theirs = m.playerAId === userId ? m.scoreB : m.scoreA;
+      stats.pj++;
+      if (mine > theirs) stats.pg++;
+      else if (mine < theirs) stats.pp++;
+      else stats.pe++;
+    });
+  return stats;
+}
