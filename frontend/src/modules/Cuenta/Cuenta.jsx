@@ -36,6 +36,7 @@ export default function Cuenta() {
       points: user.points,
       confiabilidad: user.confiabilidad,
       memberSince: user.createdAt,
+      titles: user.titles,
     };
 
     const handlePhotoChange = async (e) => {
@@ -80,19 +81,29 @@ export default function Cuenta() {
         <div className="mt-6">
           <p className="text-xs font-semibold mb-2 tracking-wide text-chalkDim">FONDO DE LA TARJETA</p>
           <div className="grid grid-cols-4 gap-2">
-            {BACKGROUNDS.map((b) => (
-              <button
-                key={b.id}
-                onClick={() => handleBackgroundSelect(b.id)}
-                title={b.name}
-                aria-label={`Fondo ${b.name}`}
-                className={`h-12 rounded-lg border-2 transition-colors ${
-                  user.background === b.id ? "border-floodlight" : "border-turf"
-                }`}
-                style={{ background: `linear-gradient(160deg, ${b.from}, ${b.to})` }}
-              />
-            ))}
+            {BACKGROUNDS.map((b) => {
+              const isUnlocked = (user.unlockedBackgrounds || ["clasico"]).includes(b.id);
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => isUnlocked && handleBackgroundSelect(b.id)}
+                  title={isUnlocked ? b.name : `${b.name} — bloqueado (${b.hint})`}
+                  aria-label={`Fondo ${b.name}${isUnlocked ? "" : ", bloqueado"}`}
+                  className={`relative h-12 rounded-lg border-2 transition-colors ${
+                    user.background === b.id ? "border-floodlight" : "border-turf"
+                  } ${isUnlocked ? "" : "opacity-40 cursor-not-allowed"}`}
+                  style={{ background: `linear-gradient(160deg, ${b.from}, ${b.to})` }}
+                >
+                  {!isUnlocked && (
+                    <span className="absolute inset-0 flex items-center justify-center text-xs">🔒</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
+          <p className="text-[10px] text-chalkDim mt-2">
+            Los fondos con candado se desbloquean jugando torneos — pasa el dedo encima para ver cómo.
+          </p>
         </div>
 
         {profileError && <p className="text-sm text-home mt-3">{profileError}</p>}

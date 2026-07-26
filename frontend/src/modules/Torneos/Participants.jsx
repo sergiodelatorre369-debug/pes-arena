@@ -18,6 +18,7 @@ function toProfile(p) {
     points: p.points,
     confiabilidad: p.confiabilidad,
     memberSince: p.createdAt,
+    titles: p.titles,
   };
 }
 

@@ -54,6 +54,19 @@ export default function ProfileCard({ profile }) {
         )}
       </div>
 
+      {profile.titles && profile.titles.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-1.5 mb-4">
+          {[...profile.titles].slice(-3).reverse().map((t) => (
+            <span
+              key={t.id}
+              className="text-[10px] rounded-full px-2.5 py-1 border border-floodlight/40 bg-pitch/60 text-chalk"
+            >
+              {t.text}
+            </span>
+          ))}
+        </div>
+      )}
+
       <p className="text-xs text-chalkDim mb-6">Miembro desde: {formatDate(profile.memberSince)}</p>
 
       <button className="inline-flex items-center justify-center gap-2 w-full rounded-xl py-3 font-bold border border-floodlight text-floodlight hover:bg-floodlight hover:text-pitch transition-colors duration-200">

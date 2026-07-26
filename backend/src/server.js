@@ -7,6 +7,7 @@ import { prisma } from "./db.js";
 import { hashPassword, comparePassword, signToken, authMiddleware, publicUser } from "./auth.js";
 import { assignGroups, roundRobinPairs, computeStandings, seedKnockout, roundName, statsForPlayer } from "./tournaments.js";
 import { assignTeams, TEAMS_BANK } from "./teams.js";
+import { POINTS_WIN, POINTS_PARTICIPATION, BONUS_CAMPEON, BONUS_SUBCAMPEON, BONUS_SEMIFINALISTA, computeNewlyUnlocked } from "./rewards.js";
 
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
@@ -138,6 +139,11 @@ app.patch("/api/profile", authMiddleware, async (req, res) => {
       data.photoUrl = photoUrl;
     }
     if (typeof background === "string") {
+      const current = await prisma.user.findUnique({ where: { id: req.userId } });
+      const unlocked = current?.unlockedBackgrounds || ["clasico"];
+      if (!unlocked.includes(background)) {
+        return res.status(400).json({ error: "Todavía no has desbloqueado ese fondo." });
+      }
       data.background = background;
     }
     if (Object.keys(data).length === 0) {
@@ -192,41 +198,191 @@ async function adjustConfiabilidad(userId, delta) {
   await prisma.user.update({ where: { id: userId }, data: { confiabilidad: next } });
 }
 
+// Fase 5 — Recompensas. Suma puntos y revisa si con eso se desbloquea
+// algún fondo nuevo (nunca quita fondos ya ganados, aunque bajen los puntos).
+async function addPoints(userId, delta) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return;
+  const points = Math.max(0, user.points + delta);
+  const newlyUnlocked = computeNewlyUnlocked(points, user.tournamentsWon);
+  const unlockedBackgrounds = [...new Set([...(user.unlockedBackgrounds || []), ...newlyUnlocked])];
+  await prisma.user.update({ where: { id: userId }, data: { points, unlockedBackgrounds } });
+}
+
+async function addTitle(userId, text) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return;
+  const titles = [...(user.titles || []), { id: crypto.randomUUID(), text, ts: Date.now() }].slice(-20);
+  await prisma.user.update({ where: { id: userId }, data: { titles } });
+}
+
+async function incrementTournamentsWon(userId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return;
+  const tournamentsWon = user.tournamentsWon + 1;
+  const newlyUnlocked = computeNewlyUnlocked(user.points, tournamentsWon);
+  const unlockedBackgrounds = [...new Set([...(user.unlockedBackgrounds || []), ...newlyUnlocked])];
+  await prisma.user.update({ where: { id: userId }, data: { tournamentsWon, unlockedBackgrounds } });
+}
+
+// Reparte los puntos de UN partido ya aprobado. "forcedWinnerId" se usa en
+// las victorias por inasistencia (gana quien sí se presentó, sin importar
+// qué marcador haya escrito). Si nadie participó de verdad, no se reparte
+// nada — "se castiga abandonar, no perder".
+async function awardMatchPoints(match, { participatedA = true, participatedB = true, forcedWinnerId = null } = {}) {
+  if (match.playerAId === match.playerBId) return; // bye técnico, no fue un partido real
+  if (!participatedA && !participatedB) return;
+
+  let winnerId = forcedWinnerId;
+  if (!winnerId) {
+    winnerId = match.scoreA > match.scoreB ? match.playerAId : match.scoreB > match.scoreA ? match.playerBId : null;
+  }
+  const loserId = !winnerId ? null : winnerId === match.playerAId ? match.playerBId : match.playerAId;
+
+  if (winnerId) {
+    await addPoints(winnerId, POINTS_WIN);
+    if (loserId && participatedA && participatedB) await addPoints(loserId, POINTS_PARTICIPATION);
+  } else if (participatedA && participatedB) {
+    await addPoints(match.playerAId, POINTS_PARTICIPATION);
+    await addPoints(match.playerBId, POINTS_PARTICIPATION);
+  }
+}
+
+// Bonos de fin de torneo: campeón, subcampeón y semifinalistas. Se llama
+// justo cuando el torneo pasa a "finalizado".
+async function awardTournamentBonuses(tournamentId, championId) {
+  const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+  const label = tournament?.name || "el torneo";
+
+  if (championId) {
+    await addPoints(championId, BONUS_CAMPEON);
+    await addTitle(championId, `🏆 Campeón — ${label}`);
+    await incrementTournamentsWon(championId);
+  }
+
+  const finalMatch = await prisma.tournamentMatch.findFirst({
+    where: { tournamentId, phase: "knockout", round: "Final", status: "aprobado" },
+  });
+  if (finalMatch && finalMatch.playerAId !== finalMatch.playerBId) {
+    const runnerUpId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.playerBId : finalMatch.playerAId;
+    await addPoints(runnerUpId, BONUS_SUBCAMPEON);
+    await addTitle(runnerUpId, `🥈 Subcampeón — ${label}`);
+  }
+
+  const semis = await prisma.tournamentMatch.findMany({
+    where: { tournamentId, phase: "knockout", round: "Semifinal", status: "aprobado" },
+  });
+  for (const m of semis) {
+    if (m.playerAId === m.playerBId) continue;
+    const loserId = m.scoreA > m.scoreB ? m.playerBId : m.playerAId;
+    await addPoints(loserId, BONUS_SEMIFINALISTA);
+    await addTitle(loserId, `🥉 Semifinalista — ${label}`);
+  }
+}
+
+const CONFLICT_TRUST_GAP = 10; // diferencia de Confiabilidad para creerle a uno de los dos sin dudar
+
+function activityCount(match, username) {
+  return (match.messages || []).filter((m) => m.from === username).length;
+}
+
+// Sistema de Evidencias + Confiabilidad, ya trabajando juntos: intenta
+// resolver un conflicto de marcador de inmediato. Si no se puede decidir
+// con justicia todavía (empate total en las señales), se queda en
+// "conflicto" esperando el plazo — ver resolveExpiredMatches.
+async function tryResolveConflict(match) {
+  const [userA, userB] = await Promise.all([
+    prisma.user.findUnique({ where: { id: match.playerAId } }),
+    prisma.user.findUnique({ where: { id: match.playerBId } }),
+  ]);
+  if (!userA || !userB) return null;
+
+  const confDiff = userA.confiabilidad - userB.confiabilidad;
+  let trusted = null;
+  if (Math.abs(confDiff) >= CONFLICT_TRUST_GAP) {
+    trusted = confDiff > 0 ? "A" : "B";
+  } else {
+    const activityA = activityCount(match, userA.username);
+    const activityB = activityCount(match, userB.username);
+    if (activityA !== activityB) trusted = activityA > activityB ? "A" : "B";
+  }
+
+  if (!trusted) return null; // empate total en las señales — se espera al plazo
+
+  const trustedReport = trusted === "A" ? match.reportA : match.reportB;
+  const trustedId = trusted === "A" ? match.playerAId : match.playerBId;
+  const otherId = trusted === "A" ? match.playerBId : match.playerAId;
+
+  const updated = await prisma.tournamentMatch.update({
+    where: { id: match.id },
+    data: {
+      status: "aprobado",
+      scoreA: trustedReport.scoreA,
+      scoreB: trustedReport.scoreB,
+      approvedAt: new Date(),
+      autoResolved: true,
+      messages: [
+        ...(match.messages || []),
+        {
+          id: crypto.randomUUID(),
+          type: "system",
+          text: "⚖️ Los marcadores no coincidían — se resolvió automático usando Confiabilidad y actividad en el chat.",
+          ts: Date.now(),
+        },
+      ],
+    },
+  });
+  await adjustConfiabilidad(trustedId, 3);
+  await adjustConfiabilidad(otherId, -5);
+  await awardMatchPoints(updated);
+
+  const byId = await withPlayers([updated], ["playerAId", "playerBId"]);
+  const nameA = byId[updated.playerAId]?.username || "Jugador A";
+  const nameB = byId[updated.playerBId]?.username || "Jugador B";
+  await addNews(match.tournamentId, `⚖️ ${nameA} ${updated.scoreA}-${updated.scoreB} ${nameB} (conflicto resuelto)`);
+  await maybeAdvanceTournament(match.tournamentId);
+  return updated;
+}
+
 // ---------------------------------------------------------------------------
-// Fase 2 — Motor de temporadas: revisa partidos vencidos y los decide solo.
-// Reglas (deliberadamente simples — resolver conflictos "de a dos marcadores
-// distintos" es la Fase 4, esto solo atiende inasistencia):
-//   - Reportó uno solo -> ese gana con su marcador, al ausente le baja la
-//     confiabilidad.
-//   - No reportó ninguno -> si alguno mostró actividad (mensaje, IP,
-//     confirmación) sin reportar, se le castiga menos que al que nunca
-//     apareció; si NINGUNO mostró nada, queda 0-0 y a los dos les baja igual.
+// Fase 2/4 — Motor de temporadas + Validación Inteligente: revisa partidos
+// vencidos y los decide solo.
+//   - Pendientes (nadie resolvió el marcador): reportó uno solo -> ese gana;
+//     no reportó ninguno -> 0-0 y castigo de Confiabilidad a los dos.
+//   - En conflicto (empate total en Confiabilidad/actividad, nadie se pudo
+//     creer más que al otro): al vencer el plazo, se toma el número más
+//     bajo que ambos reportes coincidan para cada marcador — así nadie se
+//     beneficia de haber inflado su propio resultado.
 // ---------------------------------------------------------------------------
 const AUSENCIA_PENALTY = 15;
 const INACTIVIDAD_PENALTY = 8;
+const CONFLICTO_SIN_RESOLVER_PENALTY = 5;
 
 async function resolveExpiredMatches() {
   const now = new Date();
-  const expired = await prisma.tournamentMatch.findMany({
+  const expiredPending = await prisma.tournamentMatch.findMany({
     where: { status: "pendiente", deadline: { lte: now } },
   });
-  const realExpired = expired.filter((m) => m.playerAId !== m.playerBId);
+  const realExpired = expiredPending.filter((m) => m.playerAId !== m.playerBId);
   const touchedTournaments = new Set();
 
   for (const m of realExpired) {
     const aReported = !!m.reportA;
     const bReported = !!m.reportB;
     let scoreA, scoreB, note;
+    let awardOpts = {};
 
     if (aReported && !bReported) {
       scoreA = m.reportA.scoreA;
       scoreB = m.reportA.scoreB;
-      note = "⏰ Se venció el plazo. El jugador B no reportó — gana el jugador A con su marcador.";
+      note = "⏰ Se venció el plazo. El jugador B no reportó — gana el jugador A por inasistencia.";
+      awardOpts = { forcedWinnerId: m.playerAId, participatedB: false };
       await adjustConfiabilidad(m.playerBId, -AUSENCIA_PENALTY);
     } else if (bReported && !aReported) {
       scoreA = m.reportB.scoreA;
       scoreB = m.reportB.scoreB;
-      note = "⏰ Se venció el plazo. El jugador A no reportó — gana el jugador B con su marcador.";
+      note = "⏰ Se venció el plazo. El jugador A no reportó — gana el jugador B por inasistencia.";
+      awardOpts = { forcedWinnerId: m.playerBId, participatedA: false };
       await adjustConfiabilidad(m.playerAId, -AUSENCIA_PENALTY);
     } else {
       scoreA = 0;
@@ -234,20 +390,47 @@ async function resolveExpiredMatches() {
       const aActive = !!m.lastActiveA;
       const bActive = !!m.lastActiveB;
       note = "⏰ Se venció el plazo y ninguno reportó el resultado. Queda como empate técnico 0-0.";
+      awardOpts = { participatedA: false, participatedB: false }; // nadie jugó de verdad, no hay puntos
       await adjustConfiabilidad(m.playerAId, aActive ? -INACTIVIDAD_PENALTY : -AUSENCIA_PENALTY);
       await adjustConfiabilidad(m.playerBId, bActive ? -INACTIVIDAD_PENALTY : -AUSENCIA_PENALTY);
     }
 
     const messages = [...(m.messages || []), { id: crypto.randomUUID(), type: "system", text: note, ts: Date.now() }];
-    await prisma.tournamentMatch.update({
+    const updated = await prisma.tournamentMatch.update({
       where: { id: m.id },
       data: { status: "aprobado", scoreA, scoreB, approvedAt: now, autoResolved: true, messages },
     });
+    await awardMatchPoints(updated, awardOpts);
 
     const byId = await withPlayers([m], ["playerAId", "playerBId"]);
     const nameA = byId[m.playerAId]?.username || "Jugador A";
     const nameB = byId[m.playerBId]?.username || "Jugador B";
     await addNews(m.tournamentId, `⏰ ${nameA} ${scoreA}-${scoreB} ${nameB} (resultado automático por tiempo vencido)`);
+    touchedTournaments.add(m.tournamentId);
+  }
+
+  // Conflictos que llegaron empatados en todas las señales y ya se vencieron:
+  // se resuelven con la regla pareja (el número más bajo que ambos coincidan).
+  const expiredConflicts = await prisma.tournamentMatch.findMany({
+    where: { status: "conflicto", deadline: { lte: now } },
+  });
+  for (const m of expiredConflicts.filter((x) => x.playerAId !== x.playerBId)) {
+    const scoreA = Math.min(m.reportA.scoreA, m.reportB.scoreA);
+    const scoreB = Math.min(m.reportA.scoreB, m.reportB.scoreB);
+    const note = "⏰ El conflicto no se resolvió a tiempo. Se toma el marcador más conservador en el que ambos reportes coinciden.";
+    const messages = [...(m.messages || []), { id: crypto.randomUUID(), type: "system", text: note, ts: Date.now() }];
+    const updated = await prisma.tournamentMatch.update({
+      where: { id: m.id },
+      data: { status: "aprobado", scoreA, scoreB, approvedAt: now, autoResolved: true, messages },
+    });
+    await adjustConfiabilidad(m.playerAId, -CONFLICTO_SIN_RESOLVER_PENALTY);
+    await adjustConfiabilidad(m.playerBId, -CONFLICTO_SIN_RESOLVER_PENALTY);
+    await awardMatchPoints(updated);
+
+    const byId = await withPlayers([m], ["playerAId", "playerBId"]);
+    const nameA = byId[m.playerAId]?.username || "Jugador A";
+    const nameB = byId[m.playerBId]?.username || "Jugador B";
+    await addNews(m.tournamentId, `⚖️ ${nameA} ${scoreA}-${scoreB} ${nameB} (conflicto vencido, resuelto conservador)`);
     touchedTournaments.add(m.tournamentId);
   }
 
@@ -268,7 +451,7 @@ async function resolveExpiredMatches() {
     await maybeAdvanceTournament(tournamentId);
   }
 
-  return { resolved: realExpired.length, reminders: upcoming.length };
+  return { resolved: realExpired.length, conflictsResolved: expiredConflicts.length, reminders: upcoming.length };
 }
 
 async function ensureActiveTournament() {
@@ -341,6 +524,7 @@ async function maybeAdvanceTournament(tournamentId) {
       if (qualified[0]) {
         const champ = await prisma.user.findUnique({ where: { id: qualified[0] } });
         await addNews(tournamentId, `🏆 ¡${champ?.username || "Un jugador"} es el campeón del torneo!`);
+        await awardTournamentBonuses(tournamentId, qualified[0]);
       }
       return;
     }
@@ -384,6 +568,7 @@ async function maybeAdvanceTournament(tournamentId) {
       if (winners[0]) {
         const champ = await prisma.user.findUnique({ where: { id: winners[0] } });
         await addNews(tournamentId, `🏆 ¡${champ?.username || "Un jugador"} es el campeón del torneo!`);
+        await awardTournamentBonuses(tournamentId, winners[0]);
       }
       return;
     }
@@ -696,13 +881,15 @@ app.post("/api/tournaments/matches/:matchId/report", authMiddleware, async (req,
           where: { id: match.id },
           data: { status: "aprobado", scoreA: updated.reportA.scoreA, scoreB: updated.reportA.scoreB, approvedAt: new Date() },
         });
+        await awardMatchPoints(updated);
         const byId = await withPlayers([updated], ["playerAId", "playerBId"]);
         const nameA = byId[updated.playerAId]?.username || "Jugador A";
         const nameB = byId[updated.playerBId]?.username || "Jugador B";
         await addNews(match.tournamentId, `⚽ ${nameA} ${updated.scoreA}-${updated.scoreB} ${nameB}`);
         await maybeAdvanceTournament(match.tournamentId);
       } else {
-        updated = await prisma.tournamentMatch.update({ where: { id: match.id }, data: { status: "conflicto" } });
+        const resolved = await tryResolveConflict(updated);
+        updated = resolved || (await prisma.tournamentMatch.update({ where: { id: match.id }, data: { status: "conflicto" } }));
       }
     }
     res.json({ match: updated });
