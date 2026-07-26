@@ -1,8 +1,5 @@
 name: Revisar plazos de torneos
 
-# Corre solo cada hora (Fase 2 - Motor de temporadas), y también se puede
-# disparar a mano desde la pestaña "Actions" de GitHub con "Run workflow",
-# para probarlo sin esperar a que dé la hora.
 on:
   schedule:
     - cron: "0 * * * *"
@@ -14,5 +11,8 @@ jobs:
     steps:
       - name: Tocar la puerta del backend
         run: |
-          curl -sf -X POST "${{ secrets.BACKEND_URL }}/api/cron/check-deadlines" \
+          curl -s -o response.txt -w "HTTP status: %{http_code}\n" -X POST "${{ secrets.BACKEND_URL }}/api/cron/check-deadlines" \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
+          echo "Respuesta del backend:"
+          cat response.txt
+</parameter>
