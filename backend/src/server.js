@@ -455,12 +455,26 @@ async function resolveExpiredMatches() {
 }
 
 async function ensureActiveTournament() {
-  const active = await prisma.tournament.findFirst({
-    where: { status: { not: "finalizado" } },
+  const activeCopa = await prisma.tournament.findFirst({
+    where: { type: "copa", status: { not: "finalizado" } },
     orderBy: { createdAt: "desc" },
   });
-  if (active) return active;
-  return prisma.tournament.create({ data: { name: "Copa PES ARENA", type: "copa", minPlayers: 4 } });
+  if (!activeCopa) {
+    await prisma.tournament.create({
+      data: { name: "Copa PES ARENA", type: "copa", minPlayers: 4, maxGroupSize: 4, advancePerGroup: 2 },
+    });
+  }
+
+  const activeLiga = await prisma.tournament.findFirst({
+    where: { type: "liga", status: { not: "finalizado" } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!activeLiga) {
+    // maxGroupSize gigante = todos caen en un solo grupo = todos contra todos.
+    await prisma.tournament.create({
+      data: { name: "Liga PES ARENA", type: "liga", minPlayers: 4, maxGroupSize: 9999, advancePerGroup: 4 },
+    });
+  }
 }
 
 async function maybeAdvanceTournament(tournamentId) {
@@ -488,14 +502,21 @@ async function maybeAdvanceTournament(tournamentId) {
     });
     const matchData = [];
     const deadline = new Date(Date.now() + tournament.deadlineHours * 3600 * 1000);
+    const isLiga = tournament.type === "liga";
     Object.entries(groups).forEach(([groupName, members]) => {
       roundRobinPairs(members).forEach(([a, b]) => {
-        matchData.push({ tournamentId, phase: "grupos", round: `Grupo ${groupName}`, playerAId: a, playerBId: b, deadline });
+        const round = isLiga ? "Liga" : `Grupo ${groupName}`;
+        matchData.push({ tournamentId, phase: "grupos", round, playerAId: a, playerBId: b, deadline });
       });
     });
     await prisma.tournamentMatch.createMany({ data: matchData });
     await prisma.tournament.update({ where: { id: tournamentId }, data: { status: "grupos" } });
-    await addNews(tournamentId, `⚽ ¡Comenzó la fase de grupos! ${entries.length} jugadores, cada quien con su equipo asignado.`);
+    await addNews(
+      tournamentId,
+      isLiga
+        ? `🌐 ¡Arrancó la Liga! ${entries.length} jugadores, todos contra todos.`
+        : `⚽ ¡Comenzó la fase de grupos! ${entries.length} jugadores, cada quien con su equipo asignado.`
+    );
     return;
   }
 

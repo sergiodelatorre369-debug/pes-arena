@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Trophy, Users } from "lucide-react";
+import { Trophy, Users, Globe2 } from "lucide-react";
 import { tournamentsApi } from "./api";
 import TournamentDetail from "./TournamentDetail";
 
@@ -38,23 +38,30 @@ export default function Torneos() {
       {error && <p className="text-sm text-home">{error}</p>}
 
       <div className="flex flex-col gap-3">
-        {tournaments.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setSelectedId(t.id)}
-            className="rounded-xl border border-turf bg-pitchCard p-5 text-left hover:border-home"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Trophy size={18} className="text-floodlight" />
-              <h3 className="font-display text-xl">{t.name}</h3>
-            </div>
-            <p className="text-xs text-chalkDim mb-2">{STATUS_LABEL[t.status] || t.status}</p>
-            <div className="flex items-center gap-1 text-xs text-chalkDim">
-              <Users size={14} />
-              {t.participantCount} inscritos
-            </div>
-          </button>
-        ))}
+        {tournaments.map((t) => {
+          const isLiga = t.type === "liga";
+          const Icon = isLiga ? Globe2 : Trophy;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setSelectedId(t.id)}
+              className="rounded-xl border border-turf bg-pitchCard p-5 text-left hover:border-home"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Icon size={18} className="text-floodlight" />
+                <h3 className="font-display text-xl">{t.name}</h3>
+                <span className="text-[10px] uppercase tracking-wide text-chalkDim border border-turf rounded-full px-2 py-0.5 ml-auto">
+                  {isLiga ? "Liga" : "Copa"}
+                </span>
+              </div>
+              <p className="text-xs text-chalkDim mb-2">{STATUS_LABEL[t.status] || t.status}</p>
+              <div className="flex items-center gap-1 text-xs text-chalkDim">
+                <Users size={14} />
+                {t.participantCount} inscritos
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

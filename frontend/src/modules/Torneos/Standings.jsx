@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { tournamentsApi } from "./api";
 
-export default function Standings({ tournamentId }) {
+export default function Standings({ tournamentId, isLiga }) {
   const [standings, setStandings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -21,7 +21,9 @@ export default function Standings({ tournamentId }) {
     <div className="flex flex-col gap-6">
       {standings.map((group) => (
         <div key={group.groupName}>
-          <h3 className="font-display text-lg mb-2 text-floodlight">Grupo {group.groupName}</h3>
+          <h3 className="font-display text-lg mb-2 text-floodlight">
+            {isLiga ? "Tabla General" : `Grupo ${group.groupName}`}
+          </h3>
           <div className="rounded-xl border border-turf overflow-hidden">
             <table className="w-full text-xs">
               <thead className="bg-pitchCard text-chalkDim">

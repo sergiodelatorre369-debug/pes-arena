@@ -116,7 +116,7 @@ export default function TournamentDetail({ tournamentId, onBack }) {
       )}
 
       {view === "mis-partidos" && <MyMatches tournamentId={tournamentId} onOpenMatch={setActiveMatchId} />}
-      {view === "tabla" && <Standings tournamentId={tournamentId} />}
+      {view === "tabla" && <Standings tournamentId={tournamentId} isLiga={tournament?.type === "liga"} />}
       {view === "eliminatorias" && <Bracket tournamentId={tournamentId} />}
       {view === "resultados" && <Resultados tournamentId={tournamentId} />}
       {view === "participantes" && <Participants tournamentId={tournamentId} />}
