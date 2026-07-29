@@ -82,15 +82,15 @@ export default function Torneos() {
             <button
               key={t.id}
               onClick={() => setSelectedId(t.id)}
-              className="rounded-xl border p-5 text-left"
-              style={{ borderColor: `${theme.accent}55`, background: `linear-gradient(160deg, ${theme.accentDim}33, #16261B)` }}
+              className="rounded-xl bg-pitchCard p-5 text-left overflow-hidden relative"
+              style={{ borderLeft: `6px solid ${theme.accent}` }}
             >
               <div className="flex items-center gap-2 mb-1">
                 <Icon size={18} style={{ color: theme.accent }} />
                 <h3 className="font-display text-xl">{t.name}</h3>
                 <span
-                  className="text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 ml-auto border"
-                  style={{ borderColor: theme.accent, color: theme.accent }}
+                  className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 ml-auto text-pitch"
+                  style={{ background: theme.accent }}
                 >
                   {isLiga ? "Liga" : "Copa"} · Ed. {t.edition}
                 </span>

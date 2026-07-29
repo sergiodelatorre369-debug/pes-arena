@@ -139,15 +139,18 @@ export default function TournamentDetail({ tournamentId, onBack }) {
 
       {tournament && (
         <div
-          className="rounded-xl p-5 mb-6 border"
-          style={{ borderColor: `${theme.accent}55`, background: `linear-gradient(160deg, ${theme.accentDim}, #0F1C13)` }}
+          className="rounded-xl p-5 mb-6"
+          style={{
+            borderLeft: `6px solid ${theme.accent}`,
+            background: `linear-gradient(160deg, ${theme.accentDim}, #0F1C13)`,
+          }}
         >
           <div className="flex items-center gap-2 mb-1">
             <Trophy size={18} style={{ color: theme.accent }} />
             <h2 className="font-display text-2xl">{tournament.name}</h2>
             <span
-              className="text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 ml-auto border"
-              style={{ borderColor: theme.accent, color: theme.accent }}
+              className="text-[10px] font-bold uppercase tracking-wide rounded-full px-2 py-0.5 ml-auto text-pitch"
+              style={{ background: theme.accent }}
             >
               Edición {tournament.edition}
             </span>

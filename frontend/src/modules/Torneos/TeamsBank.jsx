@@ -5,7 +5,15 @@ import TeamBadge from "../../components/TeamBadge";
 // cargado. Cada torneo trae el suyo, exclusivo.
 export default function TeamsBank({ teamsBank = [], tournamentType = "copa" }) {
   if (teamsBank.length === 0) {
-    return <p className="text-sm text-chalkDim">Cargando equipos…</p>;
+    return (
+      <div className="rounded-xl border border-dashed border-turf p-8 text-center">
+        <p className="text-chalkDim text-sm mb-1">Este torneo todavía no tiene equipos cargados.</p>
+        <p className="text-chalkDim text-xs">
+          Si esto no cambia después de recargar, revisa <code>backend/src/teams.js</code> y que la base de
+          datos tenga el campo <code>teamsBank</code> lleno para este torneo.
+        </p>
+      </div>
+    );
   }
 
   return (
