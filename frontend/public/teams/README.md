@@ -1,35 +1,45 @@
 # Escudos de equipos
 
-Guarda aquí las fotos/escudos de los equipos del Banco de Equipos. No hay
-que tocar ningún archivo de código de la app — en cuanto el archivo exista
-con el nombre correcto, aparece solo.
+Guarda aquí las fotos/escudos de los equipos. Desde la Mejora 2 (Banco de
+Equipos independiente), **cada tipo de torneo tiene su propia carpeta**:
 
-## Cuántos equipos hay y cuáles son
+- `copa/` — escudos de selecciones (equipos nacionales).
+- `liga/` — escudos de clubes.
+
+No hay que tocar ningún archivo de código — en cuanto el archivo exista
+con el nombre correcto en la carpeta correcta, aparece solo dentro de la
+app.
+
+## Cuáles equipos hay en cada banco
 
 Eso se controla en `backend/src/teams.js`:
 
-- `TEAM_COUNT` — cuántos equipos quieres en total (ej. 12, 30, 48).
-- `NAMED_TEAMS` — la lista de nombres reales que ya tienes. Si pones menos
-  nombres que `TEAM_COUNT`, los espacios que faltan se llenan solos con
-  "Equipo 31", "Equipo 32", etc. — para que siempre haya el número exacto
-  que pediste, sin que te tengas que preocupar por contarlos.
+- `COPA_TEAM_COUNT` / `COPA_NAMED_TEAMS` — banco de la Copa.
+- `LIGA_TEAM_COUNT` / `LIGA_NAMED_TEAMS` — banco de la Liga.
+
+Si pones menos nombres que el `*_COUNT`, los espacios que faltan se llenan
+solos con "Selección N" o "Club N" temporal.
+
+**Importante:** estas listas solo afectan a los torneos que se crean
+DESPUÉS de que las cambies — un torneo que ya está corriendo se queda con
+el banco que le tocó al nacer (así nadie ve que le "cambiaron el equipo"
+a media competencia).
 
 ## Cómo se llama cada archivo de foto
 
 El nombre sale del nombre del equipo, en minúsculas, sin acentos, con
 guiones en vez de espacios. Ejemplos:
 
-- "Real Madrid" → `real-madrid.png`
-- "México" → `mexico.png`
-- "Inter de Milán" → `inter-de-milan.png`
-- "Equipo 31" → `equipo-31.png`
+- Copa: "México" → `copa/mexico.png`
+- Copa: "Corea del Sur" → `copa/corea-del-sur.png`
+- Liga: "Real Madrid" → `liga/real-madrid.png`
+- Liga: "Inter de Milán" → `liga/inter-de-milan.png`
 
 ## Para sustituir un equipo por otro
 
-1. Abre `backend/src/teams.js` y cambia el nombre en `NAMED_TEAMS` (ej.
-   cambia `"Boca Juniors"` por `"Corinthians"`, o rellena un "Equipo 31"
-   con el nombre real que quieras).
-2. Sube la foto correspondiente aquí con su nombre exacto (`corinthians.png`).
+1. Abre `backend/src/teams.js` y cambia el nombre en la lista que
+   corresponda (Copa o Liga).
+2. Sube la foto correspondiente a la carpeta correcta con su nombre exacto.
 3. Sube los dos cambios (backend y esta carpeta) juntos en el mismo Commit.
 
 Si un equipo no tiene foto todavía, la app muestra un escudo genérico

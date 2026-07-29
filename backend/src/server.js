@@ -5,8 +5,8 @@ import cors from "cors";
 import crypto from "crypto";
 import { prisma } from "./db.js";
 import { hashPassword, comparePassword, signToken, authMiddleware, publicUser } from "./auth.js";
-import { assignGroups, roundRobinPairs, computeStandings, seedKnockout, roundName, statsForPlayer } from "./tournaments.js";
-import { assignTeams, TEAMS_BANK } from "./teams.js";
+import { assignGroups, roundRobinPairs, computeStandings, seedKnockout, roundName, statsForPlayer, assignTeamsFromBank } from "./tournaments.js";
+import { COPA_TEAMS, LIGA_TEAMS } from "./teams.js";
 import { POINTS_WIN, POINTS_PARTICIPATION, BONUS_CAMPEON, BONUS_SUBCAMPEON, BONUS_SEMIFINALISTA, computeNewlyUnlocked } from "./rewards.js";
 
 const PORT = process.env.PORT || 3001;
@@ -460,8 +460,18 @@ async function ensureActiveTournament() {
     orderBy: { createdAt: "desc" },
   });
   if (!activeCopa) {
+    const priorCount = await prisma.tournament.count({ where: { type: "copa" } });
     await prisma.tournament.create({
-      data: { name: "Copa PES ARENA", type: "copa", minPlayers: 4, maxGroupSize: 4, advancePerGroup: 2 },
+      data: {
+        name: "Copa PES ARENA",
+        type: "copa",
+        minPlayers: 4,
+        maxGroupSize: 4,
+        advancePerGroup: 2,
+        theme: "dorado",
+        edition: priorCount + 1,
+        teamsBank: COPA_TEAMS,
+      },
     });
   }
 
@@ -470,9 +480,19 @@ async function ensureActiveTournament() {
     orderBy: { createdAt: "desc" },
   });
   if (!activeLiga) {
+    const priorCount = await prisma.tournament.count({ where: { type: "liga" } });
     // maxGroupSize gigante = todos caen en un solo grupo = todos contra todos.
     await prisma.tournament.create({
-      data: { name: "Liga PES ARENA", type: "liga", minPlayers: 4, maxGroupSize: 9999, advancePerGroup: 4 },
+      data: {
+        name: "Liga PES ARENA",
+        type: "liga",
+        minPlayers: 4,
+        maxGroupSize: 9999,
+        advancePerGroup: 4,
+        theme: "azul",
+        edition: priorCount + 1,
+        teamsBank: LIGA_TEAMS,
+      },
     });
   }
 }
@@ -486,7 +506,7 @@ async function maybeAdvanceTournament(tournamentId) {
     if (entries.length < tournament.minPlayers) return;
 
     const assignment = assignGroups(entries.map((e) => e.userId), tournament.maxGroupSize);
-    const teams = assignTeams(entries.length);
+    const teams = assignTeamsFromBank(tournament.teamsBank, entries.length);
     await Promise.all(
       entries.map((e, i) =>
         prisma.tournamentEntry.update({
@@ -610,11 +630,35 @@ async function maybeAdvanceTournament(tournamentId) {
   }
 }
 
-// Banco de Equipos: público, sin sesión. Muestra la lista completa desde
-// la que se reparte al azar — si editas backend/src/teams.js, se refleja
-// aquí solo, sin tocar nada más.
-app.get("/api/teams", (req, res) => {
-  res.json({ teams: TEAMS_BANK });
+// Mejora 2: ya no existe un Banco de Equipos global — cada torneo trae el
+// suyo dentro de su propio registro (tournament.teamsBank), que ya viaja
+// en las respuestas de /api/tournaments y /api/tournaments/:id de abajo.
+
+// Sorteo Oficial PES ARENA: consulta tu inscripción (equipo asignado y si
+// ya viste la animación de la ruleta) y marca que ya la viste.
+app.get("/api/tournaments/:id/my-entry", authMiddleware, async (req, res) => {
+  try {
+    const entry = await prisma.tournamentEntry.findUnique({
+      where: { tournamentId_userId: { tournamentId: req.params.id, userId: req.userId } },
+    });
+    res.json({ entry: entry || null });
+  } catch (err) {
+    console.error("Error en /api/tournaments/:id/my-entry:", err);
+    res.status(500).json({ error: "No se pudo cargar tu inscripción." });
+  }
+});
+
+app.post("/api/tournaments/:id/sorteo-visto", authMiddleware, async (req, res) => {
+  try {
+    const entry = await prisma.tournamentEntry.update({
+      where: { tournamentId_userId: { tournamentId: req.params.id, userId: req.userId } },
+      data: { sorteoSeen: true },
+    });
+    res.json({ entry });
+  } catch (err) {
+    console.error("Error en /api/tournaments/:id/sorteo-visto:", err);
+    res.status(500).json({ error: "No se pudo actualizar." });
+  }
 });
 
 // Fase 2 — a esta ruta le toca la puerta el Cron Job de Render cada hora.
@@ -634,14 +678,56 @@ app.post("/api/cron/check-deadlines", async (req, res) => {
   }
 });
 
+// Mejora 1 — Lobby de Torneos: campeón vigente (de la edición anterior),
+// cupo y cuándo vence el próximo partido pendiente de ESTE torneo.
+async function enrichTournament(t, participantCount) {
+  const [nearestMatch, prevFinal] = await Promise.all([
+    prisma.tournamentMatch.findFirst({
+      where: { tournamentId: t.id, status: "pendiente", deadline: { not: null } },
+      orderBy: { deadline: "asc" },
+    }),
+    prisma.tournament.findFirst({
+      where: { type: t.type, status: "finalizado", id: { not: t.id }, championId: { not: null } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  let defendingChampion = null;
+  if (prevFinal?.championId) {
+    const champ = await prisma.user.findUnique({ where: { id: prevFinal.championId } });
+    defendingChampion = champ?.username || null;
+  }
+  return {
+    ...t,
+    participantCount,
+    cupo: t.minPlayers,
+    nextDeadline: nearestMatch?.deadline || null,
+    defendingChampion,
+  };
+}
+
 app.get("/api/tournaments", async (req, res) => {
   try {
     await ensureActiveTournament();
     const tournaments = await prisma.tournament.findMany({ orderBy: { createdAt: "desc" } });
     const counts = await prisma.tournamentEntry.groupBy({ by: ["tournamentId"], _count: true });
     const countByT = Object.fromEntries(counts.map((c) => [c.tournamentId, c._count]));
+
+    const enriched = await Promise.all(tournaments.map((t) => enrichTournament(t, countByT[t.id] || 0)));
+
+    const [totalPlayers, matchesInPlay, conflictsPending] = await Promise.all([
+      prisma.user.count(),
+      prisma.tournamentMatch.count({ where: { status: "pendiente" } }),
+      prisma.tournamentMatch.count({ where: { status: "conflicto" } }),
+    ]);
+
     res.json({
-      tournaments: tournaments.map((t) => ({ ...t, participantCount: countByT[t.id] || 0 })),
+      tournaments: enriched,
+      ecosystem: {
+        totalPlayers,
+        activeTournaments: tournaments.filter((t) => t.status !== "finalizado").length,
+        matchesInPlay,
+        conflictsPending,
+      },
     });
   } catch (err) {
     console.error("Error en GET /api/tournaments:", err);
@@ -654,7 +740,8 @@ app.get("/api/tournaments/:id", async (req, res) => {
     const tournament = await prisma.tournament.findUnique({ where: { id: req.params.id } });
     if (!tournament) return res.status(404).json({ error: "Torneo no encontrado." });
     const participantCount = await prisma.tournamentEntry.count({ where: { tournamentId: tournament.id } });
-    res.json({ tournament: { ...tournament, participantCount } });
+    const enriched = await enrichTournament(tournament, participantCount);
+    res.json({ tournament: enriched });
   } catch (err) {
     console.error("Error en GET /api/tournaments/:id:", err);
     res.status(500).json({ error: "No se pudo cargar el torneo." });

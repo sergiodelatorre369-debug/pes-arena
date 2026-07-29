@@ -38,6 +38,9 @@ model Tournament {
   maxGroupSize    Int      @default(4)
   advancePerGroup Int      @default(2)
   deadlineHours   Int      @default(72) // plazo por partido — Fase 2, motor de temporadas
+  theme           String   @default("dorado") // identidad visual: dorado (Copa) | azul (Liga)
+  edition         Int      @default(1) // 1a, 2a, 3a vez que corre este torneo
+  teamsBank       Json     @default("[]") // Banco de Equipos EXCLUSIVO de este torneo
   championId      String?
   news            Json     @default("[]") // Noticias del Torneo — eventos publicados automáticamente
   createdAt       DateTime @default(now())
@@ -52,6 +55,7 @@ model TournamentEntry {
   userId       String
   groupName    String?
   team         String? // asignado al azar cuando arranca el torneo
+  sorteoSeen   Boolean    @default(false) // ya vio la animación de la ruleta
   joinedAt     DateTime   @default(now())
 
   @@unique([tournamentId, userId])

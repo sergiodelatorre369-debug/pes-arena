@@ -109,3 +109,15 @@ export function statsForPlayer(userId, matches) {
     });
   return stats;
 }
+
+// Mejora 2 — Banco de Equipos independiente: reparte al azar desde EL
+// BANCO DE ESE TORNEO (tournament.teamsBank), ya no de una lista global.
+export function assignTeamsFromBank(bank, count) {
+  const usable = bank && bank.length > 0 ? bank : ["Equipo 1"];
+  const shuffled = shuffle(usable);
+  const result = [];
+  for (let i = 0; i < count; i++) {
+    result.push(shuffled[i % shuffled.length]);
+  }
+  return result;
+}

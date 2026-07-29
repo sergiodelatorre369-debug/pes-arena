@@ -18,10 +18,11 @@ async function request(path, options = {}) {
 }
 
 export const tournamentsApi = {
-  teamsBank: () => request("/api/teams"),
   list: () => request("/api/tournaments"),
   detail: (id) => request(`/api/tournaments/${id}`),
   join: (id) => request(`/api/tournaments/${id}/join`, { method: "POST" }),
+  myEntry: (id) => request(`/api/tournaments/${id}/my-entry`),
+  markSorteoSeen: (id) => request(`/api/tournaments/${id}/sorteo-visto`, { method: "POST" }),
   participants: (id) => request(`/api/tournaments/${id}/participants`),
   standings: (id) => request(`/api/tournaments/${id}/standings`),
   bracket: (id) => request(`/api/tournaments/${id}/bracket`),

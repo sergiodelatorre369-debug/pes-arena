@@ -12,7 +12,7 @@ function deadlineLabel(deadline) {
   return { text: `Vence en ${Math.ceil(hours / 24)} días`, urgent: false };
 }
 
-export default function MyMatches({ tournamentId, onOpenMatch }) {
+export default function MyMatches({ tournamentId, tournamentType = "copa", onOpenMatch }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,7 +51,7 @@ export default function MyMatches({ tournamentId, onOpenMatch }) {
               <div className="font-semibold">vs {m.rival?.username || "Rival"}</div>
               {m.rivalTeam && (
                 <div className="flex items-center gap-1 text-xs text-floodlight mt-1">
-                  <TeamBadge team={m.rivalTeam} size={16} />
+                  <TeamBadge team={m.rivalTeam} type={tournamentType} size={16} />
                   {m.rivalTeam}
                 </div>
               )}

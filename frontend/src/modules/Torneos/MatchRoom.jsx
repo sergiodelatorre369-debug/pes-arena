@@ -24,7 +24,7 @@ function deadlineLabel(deadline) {
   return { text: `Vence en ${Math.ceil(hours / 24)} días`, urgent: false };
 }
 
-export default function MatchRoom({ matchId, onBack }) {
+export default function MatchRoom({ matchId, tournamentType = "copa", onBack }) {
   const { user } = useAuth();
   const [match, setMatch] = useState(null);
   const [myIp, setMyIp] = useState("");
@@ -153,7 +153,7 @@ export default function MatchRoom({ matchId, onBack }) {
           <div className="text-xl text-home font-display">{me?.username}</div>
           {myTeam && (
             <div className="flex items-center gap-1.5 text-xs text-chalkDim mt-1">
-              <TeamBadge team={myTeam} size={18} />
+              <TeamBadge team={myTeam} type={tournamentType} size={18} />
               {myTeam}
             </div>
           )}
@@ -165,7 +165,7 @@ export default function MatchRoom({ matchId, onBack }) {
           {rivalTeam && (
             <div className="flex items-center justify-end gap-1.5 text-xs text-chalkDim mt-1">
               {rivalTeam}
-              <TeamBadge team={rivalTeam} size={18} />
+              <TeamBadge team={rivalTeam} type={tournamentType} size={18} />
             </div>
           )}
           {rivalLastActive && <div className="text-[10px] text-chalkDim mt-1">Visto {rivalLastActive}</div>}

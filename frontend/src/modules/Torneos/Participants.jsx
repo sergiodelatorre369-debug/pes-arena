@@ -22,7 +22,7 @@ function toProfile(p) {
   };
 }
 
-export default function Participants({ tournamentId }) {
+export default function Participants({ tournamentId, tournamentType = "copa" }) {
   const { openProfile } = useProfile();
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +65,7 @@ export default function Participants({ tournamentId }) {
             {p.playerId && <p className="text-[10px] font-mono2 text-floodlight">{p.playerId}</p>}
             <div className="flex items-center justify-center gap-1 text-xs text-chalkDim mt-1">
               {p.countryFlag && <span>{p.countryFlag}</span>}
-              {p.team && <TeamBadge team={p.team} size={14} />}
+              {p.team && <TeamBadge team={p.team} type={tournamentType} size={14} />}
               {p.team && <span className="truncate">{p.team}</span>}
             </div>
             {p.groupName && <p className="text-[10px] text-chalkDim mt-1">Grupo {p.groupName}</p>}
