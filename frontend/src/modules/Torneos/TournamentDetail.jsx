@@ -216,7 +216,7 @@ export default function TournamentDetail({ tournamentId, onBack }) {
       {view === "eliminatorias" && <Bracket tournamentId={tournamentId} />}
       {view === "resultados" && <Resultados tournamentId={tournamentId} />}
       {view === "participantes" && <Participants tournamentId={tournamentId} tournamentType={tournament?.type} />}
-      {view === "equipos" && <TeamsBank teamsBank={tournament?.teamsBank} tournamentType={tournament?.type} />}
+      {view === "equipos" && <TeamsBank tournamentId={tournamentId} tournamentType={tournament?.type} />}
       {view === "noticias" && <Noticias news={tournament?.news || []} />}
       {view === "reglamento" && <Reglamento />}
     </div>
