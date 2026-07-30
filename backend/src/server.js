@@ -473,6 +473,13 @@ async function ensureActiveTournament() {
         teamsBank: COPA_TEAMS,
       },
     });
+  } else if (!activeCopa.teamsBank || activeCopa.teamsBank.length === 0) {
+    // Reparación automática: este torneo nació ANTES de que existiera el
+    // Banco de Equipos por torneo — se le rellena solo, sin tocar nada más.
+    await prisma.tournament.update({
+      where: { id: activeCopa.id },
+      data: { teamsBank: COPA_TEAMS, theme: activeCopa.theme || "dorado" },
+    });
   }
 
   const activeLiga = await prisma.tournament.findFirst({
@@ -493,6 +500,11 @@ async function ensureActiveTournament() {
         edition: priorCount + 1,
         teamsBank: LIGA_TEAMS,
       },
+    });
+  } else if (!activeLiga.teamsBank || activeLiga.teamsBank.length === 0) {
+    await prisma.tournament.update({
+      where: { id: activeLiga.id },
+      data: { teamsBank: LIGA_TEAMS, theme: activeLiga.theme || "azul" },
     });
   }
 }
