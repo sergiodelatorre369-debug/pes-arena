@@ -6,6 +6,7 @@ async function request(path, options = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

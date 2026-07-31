@@ -72,6 +72,13 @@ function createRoom(playerA, playerB) {
 const app = express();
 app.use(cors({ origin: CLIENT_URL }));
 app.use(express.json());
+// Ninguna respuesta de esta API debe guardarse en caché — ni el navegador
+// ni ningún intermediario. Sin esto, a veces una pantalla muestra datos
+// viejos aunque la base de datos ya esté actualizada.
+app.use((req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  next();
+});
 
 app.get("/health", (req, res) => {
   cleanQueue();
