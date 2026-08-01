@@ -3,19 +3,29 @@ import { RefreshCw } from "lucide-react";
 import TeamBadge from "../../components/TeamBadge";
 import { tournamentsApi } from "./api";
 
-// A prueba de fallos: en vez de depender de que la pantalla de arriba le
-// pase el banco ya cargado (lo cual puede fallar por timing), este
-// componente busca los datos del torneo POR SU CUENTA, directo del
-// backend, cada que se abre.
 export default function TeamsBank({ tournamentId, tournamentType = "copa" }) {
   const [teamsBank, setTeamsBank] = useState(null); // null = todavía no se sabe, [] = de verdad vacío
   const [error, setError] = useState("");
+  const [debug, setDebug] = useState("");
 
   const load = () => {
+    setError("");
+    setDebug(`Pidiendo datos del torneo (id: ${tournamentId || "NO LLEGÓ NINGÚN ID"})…`);
     tournamentsApi
       .detail(tournamentId)
-      .then((data) => setTeamsBank(data.tournament?.teamsBank || []))
-      .catch((err) => setError(err.message));
+      .then((data) => {
+        const bank = data?.tournament?.teamsBank;
+        setDebug(
+          `Respuesta recibida ✓ — el torneo se llama "${data?.tournament?.name || "?"}" y su banco trae ${
+            Array.isArray(bank) ? bank.length : "0 (no es una lista)"
+          } equipos.`
+        );
+        setTeamsBank(Array.isArray(bank) ? bank : []);
+      })
+      .catch((err) => {
+        setDebug(`Falló la petición: ${err.message}`);
+        setError(err.message);
+      });
   };
 
   useEffect(() => {
@@ -23,36 +33,44 @@ export default function TeamsBank({ tournamentId, tournamentType = "copa" }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId]);
 
-  if (error) return <p className="text-sm text-home">{error}</p>;
-  if (teamsBank === null) return <p className="text-sm text-chalkDim">Cargando equipos…</p>;
-
-  if (teamsBank.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-turf p-8 text-center">
-        <p className="text-chalkDim text-sm mb-3">Este torneo todavía no tiene equipos cargados.</p>
-        <button
-          onClick={load}
-          className="inline-flex items-center gap-2 text-xs rounded-full px-4 py-2 border border-turf text-chalkDim"
-        >
-          <RefreshCw size={14} /> Reintentar
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div>
-      <p className="text-xs text-chalkDim mb-4">
-        Estos son los equipos exclusivos de este torneo — se reparten al azar cuando arranca.
+      {/* Línea de diagnóstico temporal — para ver exactamente qué está pasando */}
+      <p className="text-[10px] text-chalkDim mb-4 border border-dashed border-turf rounded-lg p-2">
+        🔧 {debug}
       </p>
-      <div className="grid grid-cols-3 gap-3">
-        {teamsBank.map((t) => (
-          <div key={t} className="flex flex-col items-center gap-2 rounded-xl border border-turf bg-pitchCard py-4 px-2">
-            <TeamBadge team={t} type={tournamentType} size={44} />
-            <span className="text-xs text-center leading-tight">{t}</span>
+
+      {error && <p className="text-sm text-home mb-4">{error}</p>}
+
+      {teamsBank === null && !error && <p className="text-sm text-chalkDim">Cargando equipos…</p>}
+
+      {teamsBank !== null && teamsBank.length === 0 && !error && (
+        <div className="rounded-xl border border-dashed border-turf p-8 text-center">
+          <p className="text-chalkDim text-sm mb-3">Este torneo todavía no tiene equipos cargados.</p>
+          <button
+            onClick={load}
+            className="inline-flex items-center gap-2 text-xs rounded-full px-4 py-2 border border-turf text-chalkDim"
+          >
+            <RefreshCw size={14} /> Reintentar
+          </button>
+        </div>
+      )}
+
+      {teamsBank !== null && teamsBank.length > 0 && (
+        <div>
+          <p className="text-xs text-chalkDim mb-4">
+            Estos son los equipos exclusivos de este torneo — se reparten al azar cuando arranca.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            {teamsBank.map((t) => (
+              <div key={t} className="flex flex-col items-center gap-2 rounded-xl border border-turf bg-pitchCard py-4 px-2">
+                <TeamBadge team={t} type={tournamentType} size={44} />
+                <span className="text-xs text-center leading-tight">{t}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
