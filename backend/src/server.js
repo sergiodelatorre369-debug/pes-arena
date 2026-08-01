@@ -699,7 +699,13 @@ app.post("/api/cron/check-deadlines", async (req, res) => {
 
 // Mejora 1 — Lobby de Torneos: campeón vigente (de la edición anterior),
 // cupo y cuándo vence el próximo partido pendiente de ESTE torneo.
-async function enrichTournament(t, participantCount) {
+async function enrichTournament(t, participantCount) {  console.log("DEBUG TOURNAMENT:", {
+    id: t.id,
+    name: t.name,
+    theme: t.theme,
+    teamsBank: t.teamsBank,
+    teamsBankIsArray: Array.isArray(t.teamsBank),
+  });
   const [nearestMatch, prevFinal] = await Promise.all([
     prisma.tournamentMatch.findFirst({
       where: { tournamentId: t.id, status: "pendiente", deadline: { not: null } },
