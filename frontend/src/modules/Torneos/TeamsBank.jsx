@@ -15,11 +15,8 @@ export default function TeamsBank({ tournamentId, tournamentType = "copa" }) {
       .detail(tournamentId)
       .then((data) => {
         const bank = data?.tournament?.teamsBank;
-        setDebug(
-          `Respuesta recibida ✓ — el torneo se llama "${data?.tournament?.name || "?"}" y su banco trae ${
-            Array.isArray(bank) ? bank.length : "0 (no es una lista)"
-          } equipos.`
-        );
+        const raw = JSON.stringify(data).slice(0, 600);
+        setDebug(`Texto crudo recibido (tipo de teamsBank: ${typeof bank}, es-array: ${Array.isArray(bank)}):\n${raw}`);
         setTeamsBank(Array.isArray(bank) ? bank : []);
       })
       .catch((err) => {
@@ -36,7 +33,7 @@ export default function TeamsBank({ tournamentId, tournamentType = "copa" }) {
   return (
     <div>
       {/* Línea de diagnóstico temporal — para ver exactamente qué está pasando */}
-      <p className="text-[10px] text-chalkDim mb-4 border border-dashed border-turf rounded-lg p-2">
+      <p className="text-[10px] text-chalkDim mb-4 border border-dashed border-turf rounded-lg p-2 whitespace-pre-wrap break-all">
         🔧 {debug}
       </p>
 
