@@ -30,19 +30,21 @@ model User {
 // que la Fase 3 (Liga) reutilice estas mismas tablas sin migraciones nuevas.
 // ---------------------------------------------------------------------------
 model Tournament {
-  id              String   @id @default(cuid())
-  name            String
-  type            String   @default("copa") // copa (fase 1) | liga (fase 3)
-  status          String   @default("inscripciones") // inscripciones | grupos | eliminatorias | finalizado
-  minPlayers      Int      @default(4)
-  maxGroupSize    Int      @default(4)
-  advancePerGroup Int      @default(2)
-  deadlineHours   Int      @default(72) // plazo por partido — Fase 2, motor de temporadas
-  theme           String   @default("dorado") // identidad visual: dorado (Copa) | azul (Liga)
-  edition         Int      @default(1) // 1a, 2a, 3a vez que corre este torneo
-  teamsBank       Json     @default("[]") // Banco de Equipos EXCLUSIVO de este torneo
-  championId      String?
-  news            Json     @default("[]") // Noticias del Torneo — eventos publicados automáticamente
+  id                String   @id @default(cuid())
+  name              String
+  type              String   @default("copa") // copa (fase 1) | liga (fase 3)
+  status            String   @default("inscripciones") // inscripciones | grupos | eliminatorias | finalizado
+  minPlayers        Int      @default(4)
+  maxGroupSize      Int      @default(4)
+  advancePerGroup   Int      @default(2)
+  deadlineHours     Int      @default(72) // ya no se usa para el avance de fase, se deja por compatibilidad
+  theme             String   @default("dorado") // identidad visual: dorado (Copa) | azul (Liga)
+  edition           Int      @default(1) // 1a, 2a, 3a vez que corre este torneo
+  teamsBank         Json     @default("[]") // Banco de Equipos EXCLUSIVO de este torneo
+  phaseDeadline     DateTime? // Reloj semanal: cuándo cierra la fase actual (siempre lunes)
+  phaseReminderSent Boolean  @default(false) // ya se avisó "quedan X días" para este corte
+  championId        String?
+  news              Json     @default("[]") // Noticias del Torneo — eventos publicados automáticamente
   createdAt       DateTime @default(now())
   entries         TournamentEntry[]
   matches         TournamentMatch[]

@@ -12,6 +12,12 @@ const STATUS_LABEL = {
   finalizado: "Finalizado",
 };
 
+const PHASE_EVENT_LABEL = {
+  inscripciones: "cierran inscripciones",
+  grupos: "termina fase de grupos",
+  eliminatorias: "termina esta ronda",
+};
+
 function countdownLabel(deadline) {
   if (!deadline) return null;
   const ms = new Date(deadline).getTime() - Date.now();
@@ -102,7 +108,7 @@ export default function Torneos() {
                 </span>
                 {t.nextDeadline && t.status !== "finalizado" && (
                   <span className="flex items-center gap-1">
-                    <Clock size={12} /> {countdownLabel(t.nextDeadline)}
+                    <Clock size={12} /> {PHASE_EVENT_LABEL[t.status] || "próximo corte"} en {countdownLabel(t.nextDeadline)}
                   </span>
                 )}
                 {t.defendingChampion && (

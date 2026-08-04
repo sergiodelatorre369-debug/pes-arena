@@ -365,20 +365,23 @@ const AUSENCIA_PENALTY = 15;
 const INACTIVIDAD_PENALTY = 8;
 const CONFLICTO_SIN_RESOLVER_PENALTY = 5;
 
-async function resolveExpiredMatches() {
+// Resuelve UN partido que ya se quedó sin tiempo — reutilizable tanto por
+// el barrido cada hora como por el cierre forzoso de fase (cuando llega el
+// lunes y algo se quedó sin jugarse).
+async function autoResolveOneMatch(m) {
   const now = new Date();
-  const expiredPending = await prisma.tournamentMatch.findMany({
-    where: { status: "pendiente", deadline: { lte: now } },
-  });
-  const realExpired = expiredPending.filter((m) => m.playerAId !== m.playerBId);
-  const touchedTournaments = new Set();
+  let scoreA, scoreB, note;
+  let awardOpts = {};
 
-  for (const m of realExpired) {
+  if (m.status === "conflicto") {
+    scoreA = Math.min(m.reportA.scoreA, m.reportB.scoreA);
+    scoreB = Math.min(m.reportA.scoreB, m.reportB.scoreB);
+    note = "⏰ El conflicto no se resolvió a tiempo. Se toma el marcador más conservador en el que ambos reportes coinciden.";
+    await adjustConfiabilidad(m.playerAId, -CONFLICTO_SIN_RESOLVER_PENALTY);
+    await adjustConfiabilidad(m.playerBId, -CONFLICTO_SIN_RESOLVER_PENALTY);
+  } else {
     const aReported = !!m.reportA;
     const bReported = !!m.reportB;
-    let scoreA, scoreB, note;
-    let awardOpts = {};
-
     if (aReported && !bReported) {
       scoreA = m.reportA.scoreA;
       scoreB = m.reportA.scoreB;
@@ -397,49 +400,39 @@ async function resolveExpiredMatches() {
       const aActive = !!m.lastActiveA;
       const bActive = !!m.lastActiveB;
       note = "⏰ Se venció el plazo y ninguno reportó el resultado. Queda como empate técnico 0-0.";
-      awardOpts = { participatedA: false, participatedB: false }; // nadie jugó de verdad, no hay puntos
+      awardOpts = { participatedA: false, participatedB: false };
       await adjustConfiabilidad(m.playerAId, aActive ? -INACTIVIDAD_PENALTY : -AUSENCIA_PENALTY);
       await adjustConfiabilidad(m.playerBId, bActive ? -INACTIVIDAD_PENALTY : -AUSENCIA_PENALTY);
     }
-
-    const messages = [...(m.messages || []), { id: crypto.randomUUID(), type: "system", text: note, ts: Date.now() }];
-    const updated = await prisma.tournamentMatch.update({
-      where: { id: m.id },
-      data: { status: "aprobado", scoreA, scoreB, approvedAt: now, autoResolved: true, messages },
-    });
-    await awardMatchPoints(updated, awardOpts);
-
-    const byId = await withPlayers([m], ["playerAId", "playerBId"]);
-    const nameA = byId[m.playerAId]?.username || "Jugador A";
-    const nameB = byId[m.playerBId]?.username || "Jugador B";
-    await addNews(m.tournamentId, `⏰ ${nameA} ${scoreA}-${scoreB} ${nameB} (resultado automático por tiempo vencido)`);
-    touchedTournaments.add(m.tournamentId);
   }
 
-  // Conflictos que llegaron empatados en todas las señales y ya se vencieron:
-  // se resuelven con la regla pareja (el número más bajo que ambos coincidan).
+  const messages = [...(m.messages || []), { id: crypto.randomUUID(), type: "system", text: note, ts: Date.now() }];
+  const updated = await prisma.tournamentMatch.update({
+    where: { id: m.id },
+    data: { status: "aprobado", scoreA, scoreB, approvedAt: now, autoResolved: true, messages },
+  });
+  await awardMatchPoints(updated, awardOpts);
+
+  const byId = await withPlayers([m], ["playerAId", "playerBId"]);
+  const nameA = byId[m.playerAId]?.username || "Jugador A";
+  const nameB = byId[m.playerBId]?.username || "Jugador B";
+  await addNews(m.tournamentId, `⏰ ${nameA} ${scoreA}-${scoreB} ${nameB} (resultado automático)`);
+  return updated;
+}
+
+async function resolveExpiredMatches() {
+  const now = new Date();
+  const expiredPending = await prisma.tournamentMatch.findMany({
+    where: { status: "pendiente", deadline: { lte: now } },
+  });
+  const realExpired = expiredPending.filter((m) => m.playerAId !== m.playerBId);
+  for (const m of realExpired) await autoResolveOneMatch(m);
+
   const expiredConflicts = await prisma.tournamentMatch.findMany({
     where: { status: "conflicto", deadline: { lte: now } },
   });
-  for (const m of expiredConflicts.filter((x) => x.playerAId !== x.playerBId)) {
-    const scoreA = Math.min(m.reportA.scoreA, m.reportB.scoreA);
-    const scoreB = Math.min(m.reportA.scoreB, m.reportB.scoreB);
-    const note = "⏰ El conflicto no se resolvió a tiempo. Se toma el marcador más conservador en el que ambos reportes coinciden.";
-    const messages = [...(m.messages || []), { id: crypto.randomUUID(), type: "system", text: note, ts: Date.now() }];
-    const updated = await prisma.tournamentMatch.update({
-      where: { id: m.id },
-      data: { status: "aprobado", scoreA, scoreB, approvedAt: now, autoResolved: true, messages },
-    });
-    await adjustConfiabilidad(m.playerAId, -CONFLICTO_SIN_RESOLVER_PENALTY);
-    await adjustConfiabilidad(m.playerBId, -CONFLICTO_SIN_RESOLVER_PENALTY);
-    await awardMatchPoints(updated);
-
-    const byId = await withPlayers([m], ["playerAId", "playerBId"]);
-    const nameA = byId[m.playerAId]?.username || "Jugador A";
-    const nameB = byId[m.playerBId]?.username || "Jugador B";
-    await addNews(m.tournamentId, `⚖️ ${nameA} ${scoreA}-${scoreB} ${nameB} (conflicto vencido, resuelto conservador)`);
-    touchedTournaments.add(m.tournamentId);
-  }
+  const realConflicts = expiredConflicts.filter((x) => x.playerAId !== x.playerBId);
+  for (const m of realConflicts) await autoResolveOneMatch(m);
 
   // Avisos de "se acaba el tiempo" — una sola vez por partido, dentro de su propia Sala.
   const soon = new Date(now.getTime() + 24 * 3600 * 1000);
@@ -454,12 +447,50 @@ async function resolveExpiredMatches() {
     await prisma.tournamentMatch.update({ where: { id: m.id }, data: { reminderSent: true, messages } });
   }
 
-  for (const tournamentId of touchedTournaments) {
-    await maybeAdvanceTournament(tournamentId);
+  // Avisos a nivel torneo: "quedan X días para..." — una vez por corte de fase.
+  const soon2 = new Date(now.getTime() + 2 * 24 * 3600 * 1000);
+  const soonTournaments = await prisma.tournament.findMany({
+    where: { status: { not: "finalizado" }, phaseReminderSent: false, phaseDeadline: { gt: now, lte: soon2 } },
+  });
+  const PHASE_EVENT_LABEL = {
+    inscripciones: "cierren las inscripciones",
+    grupos: "termine la fase de grupos",
+    eliminatorias: "termine esta ronda de eliminatorias",
+  };
+  for (const t of soonTournaments) {
+    const days = Math.max(1, Math.ceil((new Date(t.phaseDeadline).getTime() - now.getTime()) / (24 * 3600 * 1000)));
+    const label = PHASE_EVENT_LABEL[t.status] || "el próximo corte";
+    await addNews(t.id, `⏰ Quedan ${days} día(s) para que ${label} de ${t.name}.`);
+    await prisma.tournament.update({ where: { id: t.id }, data: { phaseReminderSent: true } });
   }
 
-  return { resolved: realExpired.length, conflictsResolved: expiredConflicts.length, reminders: upcoming.length };
+  // Reloj semanal: revisa TODOS los torneos activos, no solo los que
+  // tuvieron partidos vencidos ahorita — inscripciones no tiene partidos
+  // que vencer, pero igual necesita que se le revise su fecha de corte.
+  const allActive = await prisma.tournament.findMany({ where: { status: { not: "finalizado" } } });
+  for (const t of allActive) await maybeAdvanceTournament(t.id);
+
+  return { resolved: realExpired.length, conflictsResolved: realConflicts.length, reminders: upcoming.length };
 }
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+// Próximo lunes a partir de una fecha (si hoy ya es lunes, salta a la
+// semana siguiente, para que las inscripciones tengan al menos unos días).
+function nextMonday(from) {
+  const d = new Date(from);
+  const day = d.getDay(); // 0 = domingo, 1 = lunes...
+  const diff = (8 - day) % 7 || 7;
+  d.setDate(d.getDate() + diff);
+  d.setHours(9, 0, 0, 0);
+  return d;
+}
+
+const GROUP_STAGE_WEEKS = { copa: 1, liga: 4 }; // Copa: 1 semana de grupos. Liga: 4 semanas.
 
 async function ensureActiveTournament() {
   const activeCopa = await prisma.tournament.findFirst({
@@ -478,15 +509,20 @@ async function ensureActiveTournament() {
         theme: "dorado",
         edition: priorCount + 1,
         teamsBank: COPA_TEAMS,
+        phaseDeadline: nextMonday(new Date()),
       },
     });
-  } else if (!activeCopa.teamsBank || activeCopa.teamsBank.length === 0) {
-    // Reparación automática: este torneo nació ANTES de que existiera el
-    // Banco de Equipos por torneo — se le rellena solo, sin tocar nada más.
-    await prisma.tournament.update({
-      where: { id: activeCopa.id },
-      data: { teamsBank: COPA_TEAMS, theme: activeCopa.theme || "dorado" },
-    });
+  } else {
+    const repair = {};
+    if (!activeCopa.teamsBank || activeCopa.teamsBank.length === 0) repair.teamsBank = COPA_TEAMS;
+    if (!activeCopa.theme) repair.theme = "dorado";
+    if (!activeCopa.phaseDeadline) {
+      repair.phaseDeadline = nextMonday(new Date());
+      repair.phaseReminderSent = false;
+    }
+    if (Object.keys(repair).length > 0) {
+      await prisma.tournament.update({ where: { id: activeCopa.id }, data: repair });
+    }
   }
 
   const activeLiga = await prisma.tournament.findFirst({
@@ -506,23 +542,59 @@ async function ensureActiveTournament() {
         theme: "azul",
         edition: priorCount + 1,
         teamsBank: LIGA_TEAMS,
+        phaseDeadline: nextMonday(new Date()),
       },
     });
-  } else if (!activeLiga.teamsBank || activeLiga.teamsBank.length === 0) {
-    await prisma.tournament.update({
-      where: { id: activeLiga.id },
-      data: { teamsBank: LIGA_TEAMS, theme: activeLiga.theme || "azul" },
-    });
+  } else {
+    const repair = {};
+    if (!activeLiga.teamsBank || activeLiga.teamsBank.length === 0) repair.teamsBank = LIGA_TEAMS;
+    if (!activeLiga.theme) repair.theme = "azul";
+    if (!activeLiga.phaseDeadline) {
+      repair.phaseDeadline = nextMonday(new Date());
+      repair.phaseReminderSent = false;
+    }
+    if (Object.keys(repair).length > 0) {
+      await prisma.tournament.update({ where: { id: activeLiga.id }, data: repair });
+    }
   }
 }
+
 
 async function maybeAdvanceTournament(tournamentId) {
   const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
   if (!tournament) return;
 
+  // Torneo de antes de que existiera el reloj semanal — se le asigna uno y
+  // se revisa la próxima vez (así nunca se queda pegado para siempre).
+  if (!tournament.phaseDeadline) {
+    let fallback;
+    if (tournament.status === "inscripciones") {
+      fallback = nextMonday(new Date());
+    } else {
+      const nearest = await prisma.tournamentMatch.findFirst({
+        where: { tournamentId, status: "pendiente", deadline: { not: null } },
+        orderBy: { deadline: "asc" },
+      });
+      fallback = nearest?.deadline || nextMonday(new Date());
+    }
+    await prisma.tournament.update({ where: { id: tournamentId }, data: { phaseDeadline: fallback, phaseReminderSent: false } });
+    return;
+  }
+
+  const now = new Date();
+  if (tournament.phaseDeadline > now) return; // todavía no llega el lunes de corte
+
   if (tournament.status === "inscripciones") {
     const entries = await prisma.tournamentEntry.findMany({ where: { tournamentId } });
-    if (entries.length < tournament.minPlayers) return;
+    if (entries.length < 2) {
+      // no se juntó ni para un partido — se extiende una semana más, sin castigar a nadie
+      await prisma.tournament.update({
+        where: { id: tournamentId },
+        data: { phaseDeadline: addDays(tournament.phaseDeadline, 7), phaseReminderSent: false },
+      });
+      await addNews(tournamentId, `⏳ No se juntaron suficientes jugadores para ${tournament.name}. Las inscripciones se extienden una semana más.`);
+      return;
+    }
 
     const assignment = assignGroups(entries.map((e) => e.userId), tournament.maxGroupSize);
     const teams = assignTeamsFromBank(tournament.teamsBank, entries.length);
@@ -539,29 +611,38 @@ async function maybeAdvanceTournament(tournamentId) {
       groups[g] = groups[g] || [];
       groups[g].push(userId);
     });
-    const matchData = [];
-    const deadline = new Date(Date.now() + tournament.deadlineHours * 3600 * 1000);
     const isLiga = tournament.type === "liga";
+    const weeks = GROUP_STAGE_WEEKS[tournament.type] || 1;
+    const newDeadline = addDays(tournament.phaseDeadline, 7 * weeks);
+    const matchData = [];
     Object.entries(groups).forEach(([groupName, members]) => {
       roundRobinPairs(members).forEach(([a, b]) => {
         const round = isLiga ? "Liga" : `Grupo ${groupName}`;
-        matchData.push({ tournamentId, phase: "grupos", round, playerAId: a, playerBId: b, deadline });
+        matchData.push({ tournamentId, phase: "grupos", round, playerAId: a, playerBId: b, deadline: newDeadline });
       });
     });
     await prisma.tournamentMatch.createMany({ data: matchData });
-    await prisma.tournament.update({ where: { id: tournamentId }, data: { status: "grupos" } });
+    await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: { status: "grupos", phaseDeadline: newDeadline, phaseReminderSent: false },
+    });
     await addNews(
       tournamentId,
       isLiga
-        ? `🌐 ¡Arrancó la Liga! ${entries.length} jugadores, todos contra todos.`
-        : `⚽ ¡Comenzó la fase de grupos! ${entries.length} jugadores, cada quien con su equipo asignado.`
+        ? `🌐 ¡Arrancó la Liga! ${entries.length} jugadores, todos contra todos durante ${weeks} semanas.`
+        : `⚽ ¡Comenzó la fase de grupos! ${entries.length} jugadores, una semana para jugarla.`
     );
     return;
   }
 
   if (tournament.status === "grupos") {
+    // Ya es lunes de corte — lo que siga pendiente o en conflicto se
+    // resuelve solo, ahorita mismo, para que la fase sí cierre hoy.
     const groupMatches = await prisma.tournamentMatch.findMany({ where: { tournamentId, phase: "grupos" } });
-    if (groupMatches.length === 0 || groupMatches.some((m) => m.status !== "aprobado")) return;
+    for (const m of groupMatches) {
+      if (m.status === "pendiente" || m.status === "conflicto") await autoResolveOneMatch(m);
+    }
+    const resolvedMatches = await prisma.tournamentMatch.findMany({ where: { tournamentId, phase: "grupos" } });
 
     const entries = await prisma.tournamentEntry.findMany({ where: { tournamentId } });
     const byGroup = {};
@@ -571,10 +652,12 @@ async function maybeAdvanceTournament(tournamentId) {
     });
     const qualified = [];
     Object.values(byGroup).forEach((members) => {
-      const matches = groupMatches.filter((m) => members.includes(m.playerAId));
+      const matches = resolvedMatches.filter((m) => members.includes(m.playerAId));
       const table = computeStandings(members, matches);
       qualified.push(...table.slice(0, tournament.advancePerGroup).map((row) => row.userId));
     });
+
+    const newDeadline = addDays(tournament.phaseDeadline, 7);
 
     if (qualified.length <= 1) {
       await prisma.tournament.update({
@@ -591,8 +674,7 @@ async function maybeAdvanceTournament(tournamentId) {
 
     const { pairs, byes } = seedKnockout(qualified);
     const round = roundName(qualified.length);
-    const knockoutDeadline = new Date(Date.now() + tournament.deadlineHours * 3600 * 1000);
-    const matchData = pairs.map(([a, b]) => ({ tournamentId, phase: "knockout", round, playerAId: a, playerBId: b, deadline: knockoutDeadline }));
+    const matchData = pairs.map(([a, b]) => ({ tournamentId, phase: "knockout", round, playerAId: a, playerBId: b, deadline: newDeadline }));
     await prisma.tournamentMatch.createMany({ data: matchData });
     // Los jugadores con bye avanzan directo: se guardan como partido ya aprobado contra sí mismos
     // para que el cálculo de "ronda actual" los cuente como ganadores sin jugar.
@@ -603,12 +685,23 @@ async function maybeAdvanceTournament(tournamentId) {
         })
       )
     );
-    await prisma.tournament.update({ where: { id: tournamentId }, data: { status: "eliminatorias" } });
-    await addNews(tournamentId, `🏟️ Terminó la fase de grupos. ¡Ya están definidos los cruces de ${round}!`);
+    await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: { status: "eliminatorias", phaseDeadline: newDeadline, phaseReminderSent: false },
+    });
+    await addNews(tournamentId, `🏟️ Terminó la fase de grupos. ¡Ya están definidos los cruces de ${round}! Una semana para jugarlas.`);
     return;
   }
 
   if (tournament.status === "eliminatorias") {
+    // Ya se venció la semana de eliminatorias — fuerza lo que siga pendiente.
+    const openMatches = await prisma.tournamentMatch.findMany({
+      where: { tournamentId, phase: "knockout", status: { in: ["pendiente", "conflicto"] } },
+    });
+    for (const m of openMatches) {
+      if (m.playerAId !== m.playerBId) await autoResolveOneMatch(m);
+    }
+
     const allKnockout = await prisma.tournamentMatch.findMany({
       where: { tournamentId, phase: "knockout" },
       orderBy: { createdAt: "desc" },
@@ -616,8 +709,6 @@ async function maybeAdvanceTournament(tournamentId) {
     if (allKnockout.length === 0) return;
     const latestRound = allKnockout[0].round;
     const currentRoundMatches = allKnockout.filter((m) => m.round === latestRound);
-    if (currentRoundMatches.some((m) => m.status !== "aprobado")) return;
-
     const winners = currentRoundMatches.map((m) => (m.scoreA >= m.scoreB ? m.playerAId : m.playerBId));
 
     if (winners.length <= 1) {
@@ -633,10 +724,13 @@ async function maybeAdvanceTournament(tournamentId) {
       return;
     }
 
+    // Todavía faltan rondas — se generan, con una semana más para jugarlas
+    // (si un torneo tiene muchas rondas, puede tomar más de una semana en
+    // total de eliminatorias; mejor eso a dejarlo trabado).
+    const newDeadline = addDays(tournament.phaseDeadline, 7);
     const { pairs, byes } = seedKnockout(winners);
     const round = roundName(winners.length);
-    const nextDeadline = new Date(Date.now() + tournament.deadlineHours * 3600 * 1000);
-    const matchData = pairs.map(([a, b]) => ({ tournamentId, phase: "knockout", round, playerAId: a, playerBId: b, deadline: nextDeadline }));
+    const matchData = pairs.map(([a, b]) => ({ tournamentId, phase: "knockout", round, playerAId: a, playerBId: b, deadline: newDeadline }));
     await prisma.tournamentMatch.createMany({ data: matchData });
     await Promise.all(
       byes.map((userId) =>
@@ -645,7 +739,8 @@ async function maybeAdvanceTournament(tournamentId) {
         })
       )
     );
-    await addNews(tournamentId, `🔥 ¡Ya están definidos los cruces de ${round}!`);
+    await prisma.tournament.update({ where: { id: tournamentId }, data: { phaseDeadline: newDeadline, phaseReminderSent: false } });
+    await addNews(tournamentId, `🔥 ¡Ya están definidos los cruces de ${round}! Una semana más para jugarlos.`);
   }
 }
 
@@ -699,23 +794,11 @@ app.post("/api/cron/check-deadlines", async (req, res) => {
 
 // Mejora 1 — Lobby de Torneos: campeón vigente (de la edición anterior),
 // cupo y cuándo vence el próximo partido pendiente de ESTE torneo.
-async function enrichTournament(t, participantCount) {  console.log("DEBUG TOURNAMENT:", {
-    id: t.id,
-    name: t.name,
-    theme: t.theme,
-    teamsBank: t.teamsBank,
-    teamsBankIsArray: Array.isArray(t.teamsBank),
+async function enrichTournament(t, participantCount) {
+  const prevFinal = await prisma.tournament.findFirst({
+    where: { type: t.type, status: "finalizado", id: { not: t.id }, championId: { not: null } },
+    orderBy: { createdAt: "desc" },
   });
-  const [nearestMatch, prevFinal] = await Promise.all([
-    prisma.tournamentMatch.findFirst({
-      where: { tournamentId: t.id, status: "pendiente", deadline: { not: null } },
-      orderBy: { deadline: "asc" },
-    }),
-    prisma.tournament.findFirst({
-      where: { type: t.type, status: "finalizado", id: { not: t.id }, championId: { not: null } },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
   let defendingChampion = null;
   if (prevFinal?.championId) {
     const champ = await prisma.user.findUnique({ where: { id: prevFinal.championId } });
@@ -725,7 +808,7 @@ async function enrichTournament(t, participantCount) {  console.log("DEBUG TOURN
     ...t,
     participantCount,
     cupo: t.minPlayers,
-    nextDeadline: nearestMatch?.deadline || null,
+    nextDeadline: t.phaseDeadline || null, // reloj semanal: cuándo cierra la fase actual
     defendingChampion,
   };
 }

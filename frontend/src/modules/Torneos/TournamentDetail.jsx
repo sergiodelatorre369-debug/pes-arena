@@ -34,6 +34,12 @@ const STATUS_LABEL = {
   finalizado: "Torneo finalizado",
 };
 
+const PHASE_EVENT_LABEL = {
+  inscripciones: "cierran inscripciones",
+  grupos: "termina fase de grupos",
+  eliminatorias: "termina esta ronda",
+};
+
 const MENU = [
   { id: "mis-partidos", label: "Mis Partidos", icon: Swords },
   { id: "tabla", label: "Tabla", icon: Grid3x3 },
@@ -163,7 +169,7 @@ export default function TournamentDetail({ tournamentId, onBack }) {
             </span>
             {tournament.nextDeadline && tournament.status !== "finalizado" && (
               <span className="flex items-center gap-1">
-                <Clock size={12} /> próximo vence en {countdownLabel(tournament.nextDeadline)}
+                <Clock size={12} /> {PHASE_EVENT_LABEL[tournament.status] || "próximo corte"} en {countdownLabel(tournament.nextDeadline)}
               </span>
             )}
             {tournament.defendingChampion && (
