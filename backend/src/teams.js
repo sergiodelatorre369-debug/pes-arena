@@ -12,14 +12,15 @@
 // Mismo truco de siempre: cambia *_COUNT al número que quieras, los
 // espacios que falten se llenan solos con "Equipo N" temporal.
 // ---------------------------------------------------------------------------
-export const COPA_TEAM_COUNT = 30;
+export const COPA_TEAM_COUNT = 32;
 
 const COPA_NAMED_TEAMS = [
-  "México", "Argentina", "Brasil", "España", "Francia", "Alemania",
-  "Italia", "Portugal", "Países Bajos", "Inglaterra", "Bélgica", "Croacia",
-  "Uruguay", "Colombia", "Chile", "Estados Unidos", "Japón", "Corea del Sur",
-  "Canadá", "Marruecos", "Senegal", "Ecuador", "Perú", "Paraguay",
-  "Costa Rica", "Panamá", "Australia", "Arabia Saudita", "Polonia", "Suiza",
+  "Argelia", "Arabia Saudita", "Australia", "Austria", "Bulgaria", "Camerún",
+  "China", "Costa de Marfil", "Dinamarca", "Egipto", "Escocia", "Eslovenia",
+  "Finlandia", "Gales", "Grecia", "Hungría", "Irán", "Irlanda del Norte",
+  "Irlanda", "Macedonia del Norte", "Marruecos", "Nigeria", "Polonia", "Catar",
+  "República Checa", "Rumania", "Rusia", "Senegal", "Serbia", "Suecia",
+  "Suiza", "Ucrania",
 ];
 
 export const COPA_TEAMS = Array.from(
